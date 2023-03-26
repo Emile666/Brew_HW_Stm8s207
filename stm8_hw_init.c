@@ -251,7 +251,7 @@ void setup_gpio_ports(void)
     PA_CR2     |=  FLOW1; // Enable interrupt 
     EXTI_CR1   |=  0x02;  // PORTA external interrupt to falling edge only
     
-    // VALVE8..VALVE1
+    // PORTB: VALVE8..VALVE1
     PB_DDR     |=   VALVES; // Set as output
     PB_CR1     |=   VALVES; // Set to push-pull
     PB_ODR     &=  ~VALVES; // All valves off at power-up
@@ -266,11 +266,14 @@ void setup_gpio_ports(void)
     // Buzzer (PD4) is enabled by setting AFR7 bit in OPT2 option byte,
     // Set ST-LINK->Option Bytes...->AFR7 to 'Alternate Active'
     // PWM-outputs (PD2=HLT_SSR, PD0=BK_SSR) are controlled by Timer outputs
+    // SSR-outputs control 3-phase electric heating elements
+    PD_DDR     |=  (BK_SSR3 | BK_SSR2 | BK_SSR1); // SSR outputs
+    PD_CR1     |=  (BK_SSR3 | BK_SSR2 | BK_SSR1); // Set to Push-Pull
+    PD_ODR     &= ~(BK_SSR3 | BK_SSR2 | BK_SSR1); // Outputs are off
     
-    // SPI_SS (PE5) is controlled by SPI device
-    PE_ODR     |=  (SCL1 | SDA1 | SCL0 | SDA0); // Must be set here, or I2C will not work
-    PE_DDR     |=  (SCL1 | SDA1 | SCL0 | SDA0); // Set as outputs
-    PE_CR1     |=  (SCL1 | SDA1 | SCL0 | SDA0); // Set to push-pull
+    PE_ODR     |=  (SCL1 | SDA1 | SCL0 | SDA0 | SPI_SS); // Must be set here, or I2C will not work
+    PE_DDR     |=  (SCL1 | SDA1 | SCL0 | SDA0 | SPI_SS); // Set as outputs
+    PE_CR1     |=  (SCL1 | SDA1 | SCL0 | SDA0 | SPI_SS); // Set to push-pull
     PE_DDR     &= ~(FLOW2 | FLOW3 | FLOW4);     // Set as inputs
     PE_CR1     &= ~(FLOW2 | FLOW3 | FLOW4);     // Enable pull-up
     PE_CR2     |=  (FLOW2 | FLOW3 | FLOW4);     // Enable Interrupt 
@@ -283,9 +286,10 @@ void setup_gpio_ports(void)
 //    CLK_CCOR_CCOEN = 1;
     
     // LM35 (PF0) is controlled by ADC device, PF7-PF5 are free
-    PF_DDR     |=  (PUMP_230V | PUMP2_230V); // Set as outputs
-    PF_CR1     |=  (PUMP_230V | PUMP2_230V); // Set to push-pull
-    PF_ODR     &= ~(PUMP_230V | PUMP2_230V); // Disable pumps
+    // SSR-outputs control 3-phase electric heating elements
+    PF_DDR     |=  (PUMP_230V | PUMP2_230V | HLT_SSR_ALL); // Set as outputs
+    PF_CR1     |=  (PUMP_230V | PUMP2_230V | HLT_SSR_ALL); // Set to push-pull
+    PF_ODR     &= ~(PUMP_230V | PUMP2_230V | HLT_SSR_ALL); // Disable pumps
     
     // PG5 is free
     PG_ODR     |=  (SCL2 | SDA2); // Must be set here, or I2C will not work

@@ -28,20 +28,20 @@
    02 PA1/OSCIN               XTAL 24 MHz | 63 PD6/UART3_RX           RX
    03 PA2/OSCOUT              XTAL 24 MHz | 62 PD5/UART3_TX           TX
    04 VSSIO_1                 GND         | 61 PD4(HS)/TIM2_CH1[BEEP] BUZZER
-   05 VSS                     GND         | 60 PD3(HS)/TIM2_CH2       -
-   06 VCAP                    <VCAP>      | 59 PD2(HS)/TIM3_CH1       HLT_SSR
+   05 VSS                     GND         | 60 PD3(HS)/TIM2_CH2       BK_SSR3
+   06 VCAP                    <VCAP>      | 59 PD2(HS)/TIM3_CH1       BK_SSR2
    07 VDD                     +5V         | 58 PD1(HS)/SWIM           SWIM
-   08 VDDIO_1                 +5V         | 57 PD0(HS)/TIM3_CH2       BK_SSR
+   08 VDDIO_1                 +5V         | 57 PD0(HS)/TIM3_CH2       BK_SSR1
    09 PA3/TIM2_CH3[TIME3_CH1] -           | 56 PE0(HS)/CLK_CCO        FLOW2
    10 PA4(HS)/UART1_RX        RX_DBG      | 55 PE1/I2C_SCL            SCL0
    11 PA5(HS)/UART1_TX        TX_DBG      | 54 PE2/I2C_SDA            SDA0
    12 PA6(HS)/UART1_CK        FLOW1       | 53 PE3/TIM1_BKIN          SCL1
-   13 PF7/AIN15               -           | 52 PE4                    SDA1
-   14 PF6/AIN14               -           | 51 PG7                    SDA2
+   13 PF7/AIN15               HLT_SSR3    | 52 PE4                    SDA1
+   14 PF6/AIN14               HLT_SSR2    | 51 PG7                    SDA2
    15 PF5/AIN13               PUMP_230V   | 50 PG6                    SCL2
    16 PF4/AIN12               PUMP2_230V  | 49 PG5                    BG_LED 
    ---------------------------------------|-----------------------------------------
-   17 PF3/AIN11               -           | 48 PI0                    SPI_RDY
+   17 PF3/AIN11               HLT_SSR1    | 48 PI0                    SPI_RDY
    18 VREF+                   +5V filt.   | 47 PG4                    IRQ_LED
    19 VDDA                    +5V         | 46 PG3                    ALIVE_LED_B
    20 VSSA                    GND         | 45 PG2                    ALIVE_LED_G
@@ -110,10 +110,16 @@
 #define RX          (0x40) /* PD6 UART 3 */
 #define TX          (0x20) /* PD5 UART 3 */
 #define BUZZER      (0x10) /* PD4 */
-#define PD3         (0x08) /* PD3 FREE */
-#define HLT_SSR     (0x04) /* PD2/TIM3_CH1 Slow SSR output for HLT, electrical heating */
+#define BK_SSR3     (0x08) /* Boil-kettle slow SSR output 3, electric heating */
+#define BK_SSR2     (0x04) /* Boil-kettle slow SSR output 2, electric heating */
 #define SWIM        (0x02) /* PD1 SWIM */
-#define BK_SSR      (0x01) /* PD0/TIM3_CH2 Slow SSR output for BK, electrical heating*/
+#define BK_SSR1     (0x01) /* Boil-kettle slow SSR output 1, electric heating */
+
+#define BK_SSR_ALL  (BK_SSR3 | BK_SSR2 | BK_SSR1)
+// use these defines to directly control the output-pins
+#define BK_SSR3b    (PD_ODR_ODR3) 
+#define BK_SSR2b    (PD_ODR_ODR2) 
+#define BK_SSR1b    (PD_ODR_ODR0) 
 
 //-----------------------------
 // PORT E defines
@@ -127,6 +133,7 @@
 #define SCL0        (0x02) /* PE1 SCL0 */
 #define FLOW2       (0x01) /* PE0 */
 
+#define SPI_SSb     (PE_ODR_ODR5)
 #define FLOW3b      (PE_IDR_IDR7)
 #define FLOW4b      (PE_IDR_IDR6)
 #define FLOW2b      (PE_IDR_IDR0)
@@ -134,16 +141,21 @@
 //-----------------------------
 // PORT F defines
 //-----------------------------
-#define PF7         (0x80) /* PF7, FREE */       
-#define PF6         (0x40) /* PF6, FREE */       
+#define HLT_SSR3    (0x80) /* HLT slow SSR output 3, electric heating */
+#define HLT_SSR2    (0x40) /* HLT slow SSR output 2, electric heating */
 #define PUMP_230V   (0x20) /* PF5, Main pump Triac/SSR */       
 #define PUMP2_230V  (0x10) /* PF4, HLT-pump Triac/SSR */       
-#define PF3         (0x08) /* PF3, FREE */       
+#define HLT_SSR1    (0x08) /* HLT slow SSR output 1, electric heating */       
 #define LM35        (0x01) /* PF0, ADC-input for LM35 */       
 
+#define HLT_SSR_ALL (HLT_SSR3 | HLT_SSR2 | HLT_SSR1)
+
 #define LM35_ADC_CH (10)   /* PF0/AIN10 */
+#define HLT_SSR3b   (PF_ODR_ODR7)
+#define HLT_SSR2b   (PF_ODR_ODR6)
 #define PUMP_230Vb  (PF_ODR_ODR5)
 #define PUMP2_230Vb (PF_ODR_ODR4)
+#define HLT_SSR1b   (PF_ODR_ODR3)
        
 //-----------------------------
 // PORT G defines

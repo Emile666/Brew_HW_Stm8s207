@@ -32,7 +32,7 @@ uint8_t spi_error;
 void spi_init(void)
 {
     SPI_CR1_SPE = 0;     // Disable SPI
-    SPI_CR1     = 0x0D;  // MSB first, disable SPI, 4 MHz clock, Master mode, SPI mode 1
+    SPI_CR1     = 0x0C;  // MSB first, disable SPI, 6 MHz clock, Master mode, SPI mode 0
     SPI_CR2     = 0x03;  // Select SW Slave Management and Master mode
     SPI_ICR     = 0x00;  // Disable SPI interrupt on error
     SPI_CR1_SPE = 1;     // Enable SPI
@@ -45,7 +45,7 @@ void spi_init(void)
   Returns  : -
   ---------------------------------------------------------------------------*/
 void spi_write(uint8_t data)
-{	// At 4 Mbps, writing a byte takes approx. 2.5 usec.
+{   // At 6 Mbps, writing a byte takes approx. 1.3 usec.
     while (!SPI_SR_TXE) delay_usec(5); // wait until TX Register is empty
     SPI_DR = data; // send byte over SPI bus
     while (!SPI_SR_TXE) delay_usec(5); // wait until TX Register is empty
@@ -69,11 +69,11 @@ uint8_t spi_read(void)
 
 void spi_set_ss(void)    
 { 
-	PE_ODR &= ~SPI_SS; 
+	SPI_SSb = 0; 
 } // spi_set_ss()
 
 void spi_reset_ss(void)    
 { 
-	PE_ODR |= SPI_SS; 
+	SPI_SSb = 1; 
 } // spi_reset_ss()
 

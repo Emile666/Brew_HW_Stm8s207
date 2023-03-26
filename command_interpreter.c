@@ -33,22 +33,21 @@ extern uint8_t      remoteIP[4]; // remote IP address for the incoming packet wh
 extern uint8_t      ROM_NO[];    // One-wire hex-address
 extern uint8_t      crc8;
 
-extern uint8_t    system_mode;         // from Brew_Arduino.c
 extern bool       ethernet_WIZ550i;
 extern uint8_t    local_ip[4];         // local IP address received from dhcp_begin()
 extern const char *ebrew_revision;     // ebrew CVS revision number
-extern uint8_t    gas_non_mod_llimit; 
-extern uint8_t    gas_non_mod_hlimit;
-extern uint8_t    gas_mod_pwm_llimit;
-extern uint8_t    gas_mod_pwm_hlimit;
-extern uint8_t    btmr_on_val;         // ON-timer  for PWM to Time-Division Boil-kettle
-extern uint8_t    btmr_off_val;        // OFF-timer for PWM to Time-Division Boil-kettle
-extern uint8_t    htmr_on_val;         // ON-timer  for PWM to Time-Division HLT
-extern uint8_t    htmr_off_val;        // OFF-timer for PWM to Time-Division HLT
+
+extern uint8_t    hlt_elec1_pwm;       // PWM signal (0-100 %) for HLT Electric heating-element 1
+extern uint8_t    hlt_elec2_pwm;       // PWM signal (0-100 %) for HLT Electric heating-element 2
+extern pwmtime    pwmhlt1;             // Struct for HLT Electrical Heater 1 Slow SSR signal
+extern pwmtime    pwmhlt2;             // Struct for HLT Electrical Heater 1 Slow SSR signal
+
+extern uint8_t    bk_elec1_pwm;        // PWM signal (0-100 %) for Boil-kettle Electric heating-element 1
+extern uint8_t    bk_elec2_pwm;        // PWM signal (0-100 %) for Boil-kettle Electric heating-element 2
+extern pwmtime    pwmbk1;              // Struct for Boil-kettle Electrical Heater 1 Slow SSR signal
+extern pwmtime    pwmbk2;              // Struct for Boil-kettle Electrical Heater 1 Slow SSR signal
 
 extern uint16_t   lm35_temp;           // LM35 Temperature in E-2 °C
-extern uint16_t   triac_llimit;        // Hysteresis lower-limit for triac_too_hot in E-2 °C
-extern uint16_t   triac_hlimit;	       // Hysteresis upper-limit for triac_too_hot in E-2 °C
 
 //------------------------------------------------------
 // The extension _87 indicates a signed Q8.7 format!
@@ -194,48 +193,10 @@ uint8_t ethernet_command_handler(char *s)
 } // ethernet_command_handler()
 
 /*-----------------------------------------------------------------------------
-  Purpose  : Receive a value from the command-line and assign this value to 
-             the proper parameter.
-  Variables: num: the parameter number
-             val: the value for the parameter
-  Returns  : [NO_ERR, ERR_NUM]
+  Purpose  : Finds a One-Wire device
+  Variables: i2c_addr: I2C-address of DS2482 bridge
+  Returns  : -
   ---------------------------------------------------------------------------*/
-uint8_t set_parameter(uint8_t num, uint16_t val)
-{
-	uint8_t rval = NO_ERR;
-	
-	switch (num)
-	{
-		case 0: // Ebrew System-Mode
-                        if (val > 2) rval = ERR_NUM;
-                        else 
-                        {   // [GAS_MODULATING, GAS_NON_MODULATING, ELECTRICAL_HEATING]
-                            system_mode = val;
-                        } // else
-                        break;
-		case 1: // non-modulating gas valve: hysteresis lower-limit [%]
-                        gas_non_mod_llimit = val;
-                        break;
-		case 2: // non-modulating gas valve: hysteresis upper-limit [%]
-                        gas_non_mod_hlimit = val;
-                        break;
-		case 3: // Modulating gas-valve Hysteresis lower-limit [%]
-                        gas_mod_pwm_llimit = val;
-                        break;
-		case 4: // Modulating gas-valve Hysteresis upper-limit [%]
-                        gas_mod_pwm_hlimit = val;
-                        break;
-		case 5: // Lower-limit for switching of Electrical Heating (triac_too_hot) [°C]
-                        triac_llimit = val;
-                        break;
-		case 6: // Upper-limit for switching of Electrical Heating (triac_too_hot) [°C]
-                        triac_hlimit = val;
-                        break;
-		default: break;
-	} // switch
-	return rval;
-} // set_parameter()
-
 void find_OW_device(enum I2C_CH ch, uint8_t i2c_addr)
 {
     char    s2[40]; // Used for printing to RS232 port
@@ -256,39 +217,68 @@ void find_OW_device(enum I2C_CH ch, uint8_t i2c_addr)
 
 /*-----------------------------------------------------------------------------
   Purpose  : Process PWM signal for all system-modes. 
-             Executed when a Bxxx (BK-PWM signal) or a Hxxx (HLT-PWM signal) 
-             command is received. Both PWM signals control the fast (16 kHz)
-             PWM signal for the modulating gas-valves and the slow (1 Hz)
-             PWM signal for the solid-state relays (SSR).
-             The gas-valves are energized when the PWM signals exceed a 
-             lower-limit threshold (gas_mod_pwm_llimit and gas_mod_pwm_hlimit)
+             Executed when a Bxxx or Hxxx command is received.
+             MODULATING GAS BURNER:     the 230V-signal energizes the gas-valve 
+					and the PWM signal is generated by a timer.
+	     ELECTRICAL HEATING:        The 230V signal for the SSR/Triac is switched 
+                                        with a 5 sec. period, the PWM signal is 
+					converted into a time-division signal of 
+					100 * 50 msec.
 Variables: 
      pwm_ch: [PWM_BK,PWM_HLT]. Selects the PWM channel (Boil-kettle or HLT)
     pwm_val: the PWM signal [0%..100%]
   Returns  : -
   ---------------------------------------------------------------------------*/
-void process_pwm_signal(uint8_t pwm_ch, uint8_t pwm_val)
+void process_pwm_signal(uint8_t pwm_ch, uint8_t pwm_val, uint8_t enable)
 {
-    uint8_t mod_mask;
-    
-    pwm_write(pwm_ch, pwm_val);  // write PWM value to Timer 1 and 3 channels
-    mod_mask = (pwm_ch == PWM_BK) ? BOIL_230V : HLT_230V;
-    if (PC_IDR & mod_mask)
-    {   // 230V-signal is ON
-        if (pwm_val < gas_mod_pwm_llimit)
-        {   // set 230V-signal off
-            PC_ODR &= ~mod_mask;
-        } // if
-        // else do nothing (hysteresis)
-    } // if
-    else
-    {    // 230V-signal is OFF					 
-         if (pwm_val > gas_mod_pwm_hlimit)
-         {   // set 230V-signal on
-             PC_ODR |= mod_mask;
-         } // if
-         // else do nothing (hysteresis)
+    //----------------------------------------------------------------
+    // Modulating Gas-burner: create an 230V ON/OFF signal to enable
+    // the gas-burner and generate a 25 kHz PWM signal with a timer.
+    //----------------------------------------------------------------
+    if (enable & GAS_MODU)
+    {	// Modulating gas-burner is enabled
+        if (pwm_ch == PWM_BK)
+             BOIL_230Vb = true;
+        else HLT_230Vb  = true;
+    } // if	
+    else 
+    {   // Modulating gas-burner is disabled
+        if (pwm_ch == PWM_BK) 
+             BOIL_230Vb = false;
+        else HLT_230Vb  = false;
     } // else
+    pwm_write(pwm_ch, pwm_val);  // write PWM value to Timer 1 and 3 channels
+    
+    //----------------------------------------------------------------
+    // Electric Heating: send the PWM signal as a SLOW SSR signal,
+    // with T = 5 sec., to the heating-elements.
+    //----------------------------------------------------------------
+    if (pwm_ch == PWM_HLT)
+    {	// Currently, only the HLT has 2 electric heating-elements
+            if (enable & ELEC_HTR1)
+            {   // HLT Electric heating-element 1
+                    hlt_elec1_pwm = pwm_val; // set value for pwm_task() / pwm_2_time()
+            } 	// if
+            else hlt_elec1_pwm = 0; // disable electric heater
+            if (enable & ELEC_HTR2)
+            {   // HLT Electric heating-element 2
+                    hlt_elec2_pwm = pwm_val; // set value for pwm_task() / pwm_2_time()
+            } 	// if
+            else hlt_elec2_pwm = 0; // disable electric heater
+    } // if
+    else 
+    { // Boil-kettle: support here for 2 electric heating elements
+            if (enable & ELEC_HTR1)
+            {   // BK Electric heating-element 1
+                    bk_elec1_pwm = pwm_val; // set value for pwm_task() / pwm_2_time()
+            } 	// if
+            else bk_elec1_pwm = 0; // disable electric heater
+            if (enable & ELEC_HTR2)
+            {   // BK Electric heating-element 2
+                    bk_elec2_pwm = pwm_val; // set value for pwm_task() / pwm_2_time()
+            } 	// if
+            else bk_elec2_pwm = 0; // disable electric heater
+    } // else		    
 } // process_pwm_signal()
 
 /*-----------------------------------------------------------------------------
@@ -385,8 +375,6 @@ void list_all_tasks(bool rs232_udp)
                     - Time-Division ON/OFF signal for Non-Modulating gas-valve (N0=1)
                     - Time-Division ON/OFF signal for Electrical heating-element (N0=2)
    - L0 / L1      : ALIVE Led OFF / ON
-   - N0           : System-Mode: 0=Modulating, 1=Non-Modulating, 2=Electrical
-     N1..N6       : Parameter settings
    - P0 / P1      : set Pump OFF / ON
    - R0           : Reset all flows
    - S0           : Ebrew hardware revision number (also disables delayed-start)
@@ -405,7 +393,7 @@ void list_all_tasks(bool rs232_udp)
 uint8_t execute_single_command(char *s, bool rs232_udp)
 {
    uint8_t  num  = atoi(&s[1]); // convert number in command (until space is found)
-   uint8_t  rval = NO_ERR, err;
+   uint8_t  rval = NO_ERR;
    uint16_t temp;
    char     s2[40]; // Used for printing to RS232 port
    
@@ -450,11 +438,12 @@ uint8_t execute_single_command(char *s, bool rs232_udp)
                break;
                
 	   case 'b': // PWM signal for Boil-Kettle Modulating Gas-Burner
-               if (num > 100) 
-                    rval = ERR_NUM;
-               else process_pwm_signal(PWM_BK,num);
+               temp = atoi(&s[3]); // convert PWM signal to number
+               if      (num > 15)   rval = ERR_CMD; // [GAS_MODU,GAS_ONOFF,ELEC_HTR1,ELEC_HTR2]
+               else if (temp > 100) rval = ERR_NUM; // error if pwm > 100
+               else process_pwm_signal(PWM_BK,temp,num);
                break;
-               
+           
 	   case 'd': // Delayed-start option
                if (num > 2) rval = ERR_NUM;
                else
@@ -528,9 +517,10 @@ uint8_t execute_single_command(char *s, bool rs232_udp)
                break;
                
 	   case 'h': // PWM signal for HLT Modulating Gas-Burner
-               if (num > 100)
-                    rval = ERR_NUM;
-               else process_pwm_signal(PWM_HLT,num);
+               temp = atoi(&s[3]); // convert PWM signal to number
+               if      (num > 15)   rval = ERR_CMD; // [GAS_MODU,GAS_ONOFF,ELEC_HTR1,ELEC_HTR2]
+               else if (temp > 100) rval = ERR_NUM; // error if pwm > 100
+               else process_pwm_signal(PWM_HLT,temp,num);
                break;
                
 	   case 'l': // ALIVE-Led
@@ -542,23 +532,7 @@ uint8_t execute_single_command(char *s, bool rs232_udp)
                } // else
                break;
                
-	   case 'n': // Set parameters / variables to a new value
-               if ((s[2] != ' ') || (strlen(s) < 4))
-               {  // check for error in command: 'nx yy'
-                   rval = ERR_CMD; 
-               } // if				 
-               else if (num > 6)
-               {
-                   rval = ERR_NUM;
-               } // else if
-               else
-               {
-                   temp = atoi(&s[2]);             // convert to number
-                   err  = set_parameter(num,temp); // set parameter to a new value
-                   if (err != NO_ERR) rval = err;
-               } // else
-               break;
-               
+           
 	   case 'p': // Pump
                if (num > 3) rval = ERR_NUM;
                else 
@@ -591,22 +565,15 @@ uint8_t execute_single_command(char *s, bool rs232_udp)
                        pr(rs232_udp,s2); // print to UART or ETH
                        delayed_start_enable = false;  // disable delayed-start when PC program is powering-up
                        break;
-                   case 1: // List parameters
-                       sprintf(s2,"SYS:%01d,%d,%d,%d,%d,%d,%d\n",system_mode, 
-                               gas_non_mod_llimit, gas_non_mod_hlimit,
-                               gas_mod_pwm_llimit, gas_mod_pwm_hlimit,
-                               triac_llimit, triac_hlimit);
-                       pr(rs232_udp,s2); // print to UART or ETH
-                       break;
-                   case 2: // List all I2C devices
+                   case 1: // List all I2C devices
                        i2c_scan(I2C_CH0, rs232_udp);  // Start with main I2C channel
                        i2c_scan(I2C_CH1, rs232_udp); // I2C channel 1 (THLT)
                        i2c_scan(I2C_CH2, rs232_udp); // I2C channel 2 (TMLT)
                        break;
-                   case 3: // List all tasks
+                   case 2: // List all tasks
                        list_all_tasks(rs232_udp); 
                        break;	
-                   case 4: // List all One-Wire Devices (finding a sensor costs approx. 350 msec.)
+                   case 3: // List all One-Wire Devices (finding a sensor costs approx. 350 msec.)
                        find_OW_device(I2C_CH0,DS2482_THLT_BASE);  // Find ROM ID of HLT  DS18B20
                        find_OW_device(I2C_CH0,DS2482_TBOIL_BASE); // Find ROM ID of BOIL DS18B20
                        find_OW_device(I2C_CH0,DS2482_TCFC_BASE);  // Find ROM ID of CFC  DS18B20
@@ -636,8 +603,6 @@ uint8_t execute_single_command(char *s, bool rs232_udp)
                break;
                
 	   default: rval = ERR_CMD;
-                   sprintf(s2,"ERR.CMD[%s]\n",s);
-                   uart_printf(s2);
            break;
    } // switch
    return rval;	

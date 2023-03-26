@@ -32,12 +32,36 @@
 #include "scheduler.h"
 #include "eep.h"
 
-//-----------------------------
-// E-brew System Mode
-//-----------------------------
-#define GAS_MODULATING     (0) /* Modulating gas-valve */
-#define GAS_NON_MODULATING (1) /* Non-modulating gas-valve */
-#define ELECTRICAL_HEATING (2) /* Electrical heating */
+#define ON1ST        (true) /* Create PWM signal by starting with 1 signal */
+#define OFF1ST      (false) /* Create PWM signal by starting with 0 signal */
+
+//------------------------------------
+// Bit defines for elec_htrs variable
+//------------------------------------
+#define HTR_BK1     (0x01)
+#define HTR_BK2     (0x02)
+#define HTR_BK3     (0x04)
+#define HTR_HLT1    (0x08)
+#define HTR_HLT2    (0x10)
+#define HTR_HLT3    (0x20)
+
+typedef struct _pwmtime
+{
+	uint8_t std;      // STD state number
+	uint8_t mask;     // port mask of MCP23017 Port B pin
+	bool    on1st;    // true = make 1 first, false = make 0 first
+} pwmtime;
+
+//-------------------------------------------------------------------
+// These defines are used by the B and H commands and indicate  
+// which energy-sources are used.
+// Note: These defines should be the same as in the PC-program!
+//-------------------------------------------------------------------
+#define GAS_MODU               (0x01) /* Modulating gas-valve */
+#define GAS_ONOFF              (0x02) /* Non-modulating gas-valve */
+#define ELEC_HTR1              (0x04) /* First electric heating-element */
+#define ELEC_HTR2              (0x08) /* Second electric heating-element */
+#define ELEC_HTR3              (0x10) /* Not implemented yet */
 
 //-----------------------------
 // Delayed Start STD modes
@@ -47,20 +71,20 @@
 #define DEL_START_BURN   (2)
 #define DEL_START_MAX_DELAY_TIME (54000) /* Max. time is 30 hours * 60 minutes * 30 * 2 seconds */
 #define DEL_START_MAX_BURN_TIME   (3600) /* Max. time is 120 minutes * 30 * 2 seconds */
+#define DEL_START_ELEC_PWM          (40) /* PWM signal for HLT electric heaters during delayed start */
 
 //-----------------------------
 // pwm_2_time() States
 //-----------------------------
-#define IDLE       (0)
 #define EL_HTR_OFF (1)
 #define EL_HTR_ON  (2)
 
+//-------------------------------
 // INIT_TEMP  20 °C
-// INIT_VOL10 80 E-1 L
-// LM35_CONV: 11000 E-2 °C / 1023
+// LM35_CONV: 50000 E-2 °C / 1023
+//-------------------------------
 #define INIT_TEMP  (20)
-#define INIT_VOL10 (80)
-#define LM35_CONV  (10.75268817)
+#define LM35_CONV  (48.87585533)
 
 //---------------------------------------------------
 // Q = 5.5 Hz for 1 L, 11 pulses per L per sec.

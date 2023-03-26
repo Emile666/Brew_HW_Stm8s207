@@ -75,14 +75,14 @@ __interrupt void UART_RX_IRQHandler(void)
 	} // if
 	else
 	{
-		ch = UART1_DR; // clear RXNE flag
-		ovf_buf_in = true;
+            ch    = UART1_SR; // Clear IDLE and Overrun errors
+            ch    = UART1_DR;
 	} // else
 	isr_cnt++;
 } /* UART_RX_IRQHandler() */
 
 /*------------------------------------------------------------------
-  Purpose  : This function initializes the UART to 115200,N,8,1
+  Purpose  : This function initializes the UART to BAUDRATE (uart.h).
              Master clock is 24 MHz, baud-rate is 115200 Baud.
   Variables: clk: which clock is active: HSI (0xE1), HSE (0xB4) or LSI (0xD2)
   Returns  : -
@@ -94,37 +94,34 @@ void uart_init(uint8_t clk)
     //  to the UART1_SR register followed by a Read to the UART1_DR register.
     //
     uint8_t tmp = UART1_SR;
-    tmp = UART1_DR;
+    tmp         = UART1_DR;
 
     //  Reset the UART registers to the reset values.
-    UART1_CR1 = 0;
-    UART1_CR2 = 0;
-    UART1_CR4 = 0;
-    UART1_CR3 = 0;
-    UART1_CR5 = 0;
-    UART1_GTR = 0;
+    UART1_CR1  = 0;
+    UART1_CR2  = 0;
+    UART1_CR4  = 0;
+    UART1_CR3  = 0;
+    UART1_CR5  = 0;
+    UART1_GTR  = 0;
     UART1_PSCR = 0;
 
     // initialize the in and out buffer for the UART
     ring_buffer_out = ring_buffer_init(out_buffer, TX_BUF_SIZE);
     ring_buffer_in  = ring_buffer_init(in_buffer , RX_BUF_SIZE);
 
-    //  Now setup the port to 115200,N,8,1.
-    //   8 MHz:  69 = 0x0045, BRR1=0x04, BRR2=0x05, err=+0.64%
-    //  16 MHz: 139 = 0x008B, BRR1=0x08, BRR2=0x0B, err=-0.08%
-    //  24 MHz: 208 = 0x00D0, BRR1=0x0D, BRR2=0x00, err=+0.16%
+    //  Now setup the port to BAUDRATE,N,8,1.
     UART1_CR1_M    = 0;     //  8 Data bits.
     UART1_CR1_PCEN = 0;     //  Disable parity.
     UART1_CR3_STOP = 0;     //  1 stop bit.
     if (clk == HSE)
-    {   // external HSE oscillator
-        UART1_BRR2     = 0x00;  //  Set the baud rate registers to 115200 baud
-        UART1_BRR1     = 0x0D;  //  based upon a 24 MHz system clock.
+    {   // external 24 MHz HSE oscillator
+        UART1_BRR2 = UART1BRR2_HSE; // Set BRR2 register first
+        UART1_BRR1 = UART1BRR1_HSE;
     } // if
     else
-    {   // internal HSI oscillator
-        UART1_BRR2     = 0x0B;  //  Set the baud rate registers to 115200 baud
-        UART1_BRR1     = 0x08;  //  based upon a 16 MHz system clock.
+    {   // internal 16 MHz HSI oscillator
+        UART1_BRR2 = UART1BRR2_HSI; // Set BRR2 register first
+        UART1_BRR1 = UART1BRR1_HSI;
     } // else
 
     //  Disable the transmitter and receiver.

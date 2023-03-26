@@ -45,11 +45,14 @@ uint16_t w5500_read(uint16_t addr, uint8_t cb, uint8_t *buf, uint16_t len)
     
     spi_set_ss();
     spi_write(addr >> 8);   // MSB of 16-bit address
+    ret = spi_read();       // dummy read
     spi_write(addr & 0xFF); // LSB of 16-bit address
+    ret = spi_read();       // dummy read
     spi_write(cb);          // control-byte
+    spi_read();             // dummy read
     for (i = 0; i < len; i++)
     {
-        spi_write(0xFF); // clock for read cycle
+        spi_write(0x00);    // dummy write
         buf[i] = spi_read();
     } // for
     spi_reset_ss();
@@ -81,7 +84,7 @@ uint16_t w5500_read_common_register(uint8_t reg_name, uint8_t *buf)
     if      ((reg_name == RTR)  || (reg_name == UPORT))  len = 2;
     else if ((reg_name == GAR)  || (reg_name == SUBR) || 
              (reg_name == SIPR) || (reg_name == UIPR))   len = 4;
-    else if  (reg_name == SHAR) 			     len = 6;
+    else if  (reg_name == SHAR) 			 len = 6;
     
     // The Register Name is also defined as the Register Address
     // So use reg_name also as address here
@@ -108,7 +111,7 @@ uint16_t w5500_read_socket_register(SOCKET s, uint8_t reg_name, uint8_t *buf)
     
     if      ((reg_name == Sn_MR) || (reg_name == Sn_CR)    || (reg_name == Sn_IR)  || 
              (reg_name == Sn_SR) || (reg_name == Sn_PROTO) || (reg_name == Sn_TOS) ||
-	         (reg_name == Sn_TTL)) len = 1;
+	     (reg_name == Sn_TTL)) len = 1;
     else if (reg_name == Sn_DIPR)  len = 4;
     else if (reg_name == Sn_DHAR)  len = 6;
     // The Register Name is also defined as the Register Address
@@ -134,11 +137,15 @@ uint16_t w5500_write(uint16_t addr, uint8_t cb, const uint8_t *buf, uint16_t len
     
     spi_set_ss();
     spi_write(addr >> 8);   // MSB of 16-bit address
+    spi_read();             // dummy read
     spi_write(addr & 0xFF); // LSB of 16-bit address
-    spi_write(cb);
+    spi_read();             // dummy read
+    spi_write(cb);          // control-byte
+    spi_read();             // dummy read
     for (i = 0; i < len; i++)
     {
-        spi_write(buf[i]);
+        spi_write(buf[i]);  // write byte
+        spi_read();         // dummy read
     } // for
     spi_reset_ss();
     return len; // #bytes written
@@ -160,7 +167,7 @@ uint16_t w5500_write_common_register(uint8_t reg_name, uint8_t *buf)
     if      ((reg_name == RTR)  || (reg_name == UPORT))  len = 2;
     else if ((reg_name == GAR)  || (reg_name == SUBR) || 
              (reg_name == SIPR) || (reg_name == UIPR))   len = 4;
-    else if  (reg_name == SHAR) 			     len = 6;
+    else if  (reg_name == SHAR) 			 len = 6;
     
     // The Register Name is also defined as the Register Address
     // So use reg_name also as address here.
@@ -193,7 +200,8 @@ uint16_t w5500_write_socket_register(SOCKET s, uint8_t reg_name, uint8_t *buf)
             len = 4; break;
         case Sn_DHAR: 
             len = 6; break;
-        default: len = 2; break;	
+        default: 
+            len = 2; break;	
     } // switch
     // The Register Name is also defined as the Register Address
     // So use reg_name also as address here

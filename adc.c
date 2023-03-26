@@ -21,7 +21,7 @@
 
 /*-----------------------------------------------------------------------------
   Purpose  : This routine reads a value from an ADC channel
- Variables : ch: channel number [AIN3,AIN4]
+ Variables : ch: channel number [AD_LM35]
   Returns  : the value read from the ADC
   ---------------------------------------------------------------------------*/
 uint16_t read_adc(uint8_t ch)
@@ -36,7 +36,7 @@ uint16_t read_adc(uint8_t ch)
     // select the analog input channel before powering on the ADC
     // Time needed: tSTAB = 7 us, tCONV = 3.5 us (fADC = 4 MHz). Total = 10.5 us)
     ADC_CSR_CH    = ch;         // Select ADC channel
-    ADC_TDRL      = 0x18;       // Disable Schmitt-Trigger of ADC channels 3 and 4
+    ADC_TDRH      = 0x04;       // Disable Schmitt-Trigger of ADC channel 10
     ADC_CR1_ADON  = 1;          // Turn ADC on, note a 2nd set is required to start the conversion.
     ADC_CR3_DBUF  = 0;
     ADC_CR2_ALIGN = 1;          // Data is right aligned.
@@ -54,6 +54,7 @@ uint16_t read_adc(uint8_t ch)
         ADC_CSR_EOC  = 0;	    // Reset conversion complete flag
     } // for
     ADC_CR1_ADON = 0;               // Disable the ADC
+    result2     += (ADC_AVG>>1);    // add 0.5 for rounding
     result2     /= ADC_AVG;         // Calculate average of samples
     return result2;
 } // read_adc()
