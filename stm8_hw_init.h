@@ -106,7 +106,7 @@
 //-----------------------------
 // PORT D defines
 //-----------------------------
-#define PD7         (0x80) /* PD7 FREE*/
+#define SPI_CS_LEDS (0x80) /* PD7 chip-select for MAX7219 */
 #define RX          (0x40) /* PD6 UART 3 */
 #define TX          (0x20) /* PD5 UART 3 */
 #define BUZZER      (0x10) /* PD4 */
@@ -115,11 +115,12 @@
 #define SWIM        (0x02) /* PD1 SWIM */
 #define BK_SSR1     (0x01) /* Boil-kettle slow SSR output 1, electric heating */
 
-#define BK_SSR_ALL  (BK_SSR3 | BK_SSR2 | BK_SSR1)
+#define BK_SSR_ALL   (BK_SSR3 | BK_SSR2 | BK_SSR1)
 // use these defines to directly control the output-pins
-#define BK_SSR3b    (PD_ODR_ODR3) 
-#define BK_SSR2b    (PD_ODR_ODR2) 
-#define BK_SSR1b    (PD_ODR_ODR0) 
+#define SPI_CS_LEDSb (PD_ODR_ODR7)
+#define BK_SSR3b     (PD_ODR_ODR3) 
+#define BK_SSR2b     (PD_ODR_ODR2) 
+#define BK_SSR1b     (PD_ODR_ODR0) 
 
 //-----------------------------
 // PORT E defines

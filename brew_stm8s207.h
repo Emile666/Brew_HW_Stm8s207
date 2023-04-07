@@ -95,6 +95,24 @@ typedef struct _pwmtime
 #define FLOW_PER_L     (330)
 #define FLOW_ROUND_OFF (FLOW_PER_L>>1)
 
+//----------------------------------------------------------
+// Defines for the Frontpanel LEDs connected to the MAX7219
+//----------------------------------------------------------
+#define MAX7219D0HG   (0x80) /* HLT gasburner enable  */
+#define MAX7219D0H3   (0x40) /* HLT electric heater 3 */
+#define MAX7219D0H2   (0x20) /* HLT electric heater 2 */
+#define MAX7219D0H1   (0x10) /* HLT electric heater 1 */
+#define MAX7219D0BG   (0x08) /* BK  gasburner enable  */
+#define MAX7219D0B3   (0x04) /* BK  electric heater 3 */
+#define MAX7219D0B2   (0x02) /* BK  electric heater 2 */
+#define MAX7219D0B1   (0x01) /* BK  electric heater 1 */
+/* DIG1 contains the Valve LEDs */
+#define MAX7219D2LV   (0x80) /* Alive LED */
+#define MAX7219D2DS   (0x40) /* Delayed-Start LED */
+#define MAX7219D2P2   (0x20) /* Pump 2 */
+#define MAX7219D2P1   (0x10) /* Pump 1 */
+/* Bits D3-D0 of DIG2 are spares */
+
 void    print_ebrew_revision(char *ver);
 uint8_t init_WIZ550IO_module(void);
 void    print_IP_address(uint8_t *ip);

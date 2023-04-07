@@ -267,9 +267,10 @@ void setup_gpio_ports(void)
     // Set ST-LINK->Option Bytes...->AFR7 to 'Alternate Active'
     // PWM-outputs (PD2=HLT_SSR, PD0=BK_SSR) are controlled by Timer outputs
     // SSR-outputs control 3-phase electric heating elements
-    PD_DDR     |=  (BK_SSR3 | BK_SSR2 | BK_SSR1); // SSR outputs
-    PD_CR1     |=  (BK_SSR3 | BK_SSR2 | BK_SSR1); // Set to Push-Pull
-    PD_ODR     &= ~(BK_SSR3 | BK_SSR2 | BK_SSR1); // Outputs are off
+    PD_ODR     |=  SPI_CS_LEDS;                                 // MAX7219 CS is disabled
+    PD_DDR     |=  (SPI_CS_LEDS | BK_SSR3 | BK_SSR2 | BK_SSR1); // SSR outputs
+    PD_CR1     |=  (SPI_CS_LEDS | BK_SSR3 | BK_SSR2 | BK_SSR1); // Set to Push-Pull
+    PD_ODR     &= ~(BK_SSR3 | BK_SSR2 | BK_SSR1);               // SSR Outputs are off
     
     PE_ODR     |=  (SCL1 | SDA1 | SCL0 | SDA0 | SPI_SS); // Must be set here, or I2C will not work
     PE_DDR     |=  (SCL1 | SDA1 | SCL0 | SDA0 | SPI_SS); // Set as outputs

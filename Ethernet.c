@@ -45,16 +45,16 @@ int Ethernet_begin(void)
   uart_printf("w5500_init():");
   w5500_init();
   w5500_write_common_register(SIPR,tmp);
-  uart_printf("ok\nread SHAR:");
+  uart_printf("ok\nread MAC: ");
   w5500_read_common_register(SHAR ,mac_address);
-  sprintf(s,"MAC:%02x:%02x:%02x:%02x:%02x:%02x ",mac_address[0],mac_address[1],mac_address[2],mac_address[3],mac_address[4],mac_address[5]);
+  sprintf(s,"%02x:%02x:%02x:%02x:%02x:%02x ",mac_address[0],mac_address[1],mac_address[2],mac_address[3],mac_address[4],mac_address[5]);
   uart_printf(s);
   if (!(mac_address[0] | mac_address[1] | mac_address[2] | mac_address[3] | mac_address[4] | mac_address[5]))
   {
-	   uart_printf(": no WIZ550IO\n");
-	   return ret; // 0: error, no WIZ550IO found
+       uart_printf(": no WIZ550IO\n");
+       return ret; // 0: error, no WIZ550IO found
   } // if
-  else uart_printf("\ndhcp_begin:");
+  else uart_printf("\ndhcp_begin():");
   
   // Now try to get our config info from a DHCP server
   ret = dhcp_begin(mac_address);
@@ -62,11 +62,11 @@ int Ethernet_begin(void)
   {
     // We have successfully found a DHCP server and got our configuration info, 
     // so set things accordingly
-	w5500_write_common_register(SIPR,dhcpLocalIp);
-	w5500_write_common_register(GAR ,dhcpGatewayIp);
-	w5500_write_common_register(SUBR,dhcpSubnetMask); 
-	ipcpy(dnsServerAddress, dhcpDnsServerIp); // save result
-	uart_printf("ok\n");
+    w5500_write_common_register(SIPR,dhcpLocalIp);
+    w5500_write_common_register(GAR ,dhcpGatewayIp);
+    w5500_write_common_register(SUBR,dhcpSubnetMask); 
+    ipcpy(dnsServerAddress, dhcpDnsServerIp); // save result
+    uart_printf("ok\n");
   } // if
   else uart_printf("no DHCP\n");
   return ret;
@@ -99,14 +99,14 @@ int Ethernet_maintain(void)
         break;
       case DHCP_CHECK_RENEW_OK:
       case DHCP_CHECK_REBIND_OK:
-        //we might have got a new IP.
-		w5500_write_common_register(SIPR,dhcpLocalIp);
-		w5500_write_common_register(GAR ,dhcpGatewayIp);
-		w5500_write_common_register(SUBR,dhcpSubnetMask);
-		ipcpy(dnsServerAddress, dhcpDnsServerIp); // save result
+            // we might have gotten a new IP.
+            w5500_write_common_register(SIPR,dhcpLocalIp);
+            w5500_write_common_register(GAR ,dhcpGatewayIp);
+            w5500_write_common_register(SUBR,dhcpSubnetMask);
+            ipcpy(dnsServerAddress, dhcpDnsServerIp); // save result
         break;
       default:
-        //this is actually a error, it will retry though
+        // this is actually a error, it will retry though
         break;
     } // switch
   return rc;

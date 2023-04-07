@@ -196,20 +196,21 @@
 #include "Ethernet.h"
 #include "Udp.h"
 #include "one_wire.h"
-
+#include "max7219.h"
+      
 extern char rs232_inbuf[];
 
 // Global variables
 uint8_t      local_ip[4]      = {0,0,0,0}; // local IP address, gets a value from init_WIZ550IO_module() -> dhcp_begin()
 uint16_t     local_port;                   // local port number read back from wiz550i module
-const char  *ebrew_revision   = "$Revision: 2.02 $"; // ebrew CVS revision number
+const char  *ebrew_revision   = "$Revision: 2.03 $"; // ebrew revision number
 bool         ethernet_WIZ550i = true;		     // true = start WIZ550i at power-up
 
 // The following variables are defined in Udp.c
 extern uint8_t  remoteIP[4]; // remote IP address for the incoming packet whilst it's being processed 
 extern uint16_t remotePort;  // remote port for the incoming packet whilst it's being processed 
 extern uint8_t  _sock;       // socket ID for Wiz5100
-unsigned char   udp_rcv_buf[UDP_TX_PACKET_MAX_SIZE]; //buffer to hold incoming packet]
+unsigned char   udp_rcv_buf[UDP_TX_PACKET_MAX_SIZE]; // buffer to hold incoming packet]
 
 // The following variables are needed for the buzzer
 extern bool     bz_on;      // true = buzzer is enabled
@@ -269,7 +270,7 @@ uint8_t  tmlt_err = 0;              // 1 = Read error from LM92
 ma       tmlt_ow_ma;                // struct for TMLT_OW moving_average filter
 int16_t  tmlt_ow_old_87;            // Previous value of tmlt_ow_87
 int16_t  tmlt_ow_87;                // TMLT Temperature from DS18B20 in °C * 128
-uint8_t  tmlt_ow_err = 0;	        // 1 = Read error from DS18B20
+uint8_t  tmlt_ow_err = 0;	    // 1 = Read error from DS18B20
 
 //------------------------------------------------
 // TCFC parameters and variables (One-Wire only)
@@ -299,6 +300,13 @@ bool     delayed_start_enable  = false;          // true = delayed start is enab
 uint16_t delayed_start_time    = 0;              // delayed start time in 2 sec. counts 
 uint16_t delayed_start_timer1;                   // timer to countdown until delayed start
 uint8_t  delayed_start_std     = DEL_START_INIT; // std number, start in INIT state
+
+//------------------------------------------------
+// Frontpanel LEDs are controlled by the MAX7219
+//------------------------------------------------
+uint8_t max7219dig2 = 0; // LEDs: Alive, Delayed-Start, Pump2, Pump1, S4, S3, S2, S1
+uint8_t max7219dig1 = 0; // LEDs: Valves V8, V7, V6, V5, V4, V3, V2, V1
+uint8_t max7219dig0 = 0; // LEDs: HLT gas, HLT E3, HLT E2, HLT E1, BK gas, BK E3, BK E2, BK E1
 
 /*------------------------------------------------------------------
   Purpose  : This is the delayed-start routine which is called by 
@@ -369,10 +377,15 @@ void process_delayed_start(void)
     } // switch
     if ((led_tmr_max > 0) && (++led_tmr > led_tmr_max))
     {    // blink once every led_tmr_max seconds
-        led_tmr = 0;
+        led_tmr      = 0;
         ALIVE_LED_Rb = 1; // red LED on
+        max7219dig2 |= MAX7219D2DS; // Frontpanel LED on
     } // if
-    else ALIVE_LED_Rb = 0; // red LED off
+    else 
+    {
+        ALIVE_LED_Rb = 0; // red LED off
+        max7219dig2 &= ~MAX7219D2DS; // Frontpanel LED off
+    } // else
 } // process_delayed_start()
 
 /*------------------------------------------------------------------
@@ -447,17 +460,17 @@ void pwm_2_time(pwmtime *p, uint8_t cntr, uint8_t pwm)
 /*-----------------------------------------------------------------------------
   Purpose  : This task converts a PWM signal into a time-division signal of 
              100 * 50 msec. This routine should be called from the timer-interrupt 
-			 every 50 msec. It uses the hlt_elecx_pwm and bk_elecx_pwm signals 
-			 which were set by the process_pwm_signal(). This variable will only 
-			 get a non-zero number when the corresponding electrical 
-			 heating-element is enabled.
+	     every 50 msec. It uses the hlt_elecx_pwm and bk_elecx_pwm signals 
+	     which were set by the process_pwm_signal(). This variable will only 
+	     get a non-zero number when the corresponding electrical 
+	     heating-element is enabled.
 			 
-			 Priority: the HLT and BK heating-elements can be sourced from the
-			           same outlet. If the BK starts to heat, it may be possible
-					   for the HLT to draw current too. In order to prevent this,
-					   the BK has priority over the HLT. In other words, if the
-					   BK heating-element is energized, the HLT heating-element
-					   on the same outlet is disabled.
+	     Priority: the HLT and BK heating-elements can be sourced from the
+	     same outlet. If the BK starts to heat, it may be possible
+	     for the HLT to draw current too. In order to prevent this,
+	     the BK has priority over the HLT. In other words, if the
+	     BK heating-element is energized, the HLT heating-element
+	     on the same outlet is disabled.
   Variables: - 
   Returns  : -
   ---------------------------------------------------------------------------*/
@@ -475,21 +488,27 @@ void pwm_task(void)
    if ((elec_htrs & (HTR_BK3 | HTR_HLT3)) == (HTR_BK3 | HTR_HLT3)) elec_htrs &= ~HTR_HLT3;
    
    if (elec_htrs & pwmhlt1.mask)
-        HLT_SSR1b = true;  // Enable  HLT heater 1
-   else HLT_SSR1b = false; // Disable HLT heater 1
+        { HLT_SSR1b = true;  max7219dig0 |=  MAX7219D0H1; } // Enable  HLT heater 1 
+   else { HLT_SSR1b = false; max7219dig0 &= ~MAX7219D0H1; } // Disable HLT heater 1
    if (elec_htrs & pwmhlt2.mask)
-        HLT_SSR2b = true;  // Enable  HLT heater 2
-   else HLT_SSR2b = false; // Disable HLT heater 2
+        { HLT_SSR2b = true;  max7219dig0 |=  MAX7219D0H2; } // Enable  HLT heater 2
+   else { HLT_SSR2b = false; max7219dig0 &= ~MAX7219D0H2; } // Disable HLT heater 2
    // HLT electric heater 3 not implemented yet
    
    if (elec_htrs & pwmbk1.mask)
-        BK_SSR1b = true;  // Enable  BK heater 1
-   else BK_SSR1b = false; // Disable BK heater 1
+        { BK_SSR1b = true;  max7219dig0 |=  MAX7219D0B1; } // Enable  BK heater 1
+   else { BK_SSR1b = false; max7219dig0 &= ~MAX7219D0B1; } // Disable BK heater 1
    if (elec_htrs & pwmbk2.mask)
-        BK_SSR2b = true;  // Enable  BK heater 2
-   else BK_SSR2b = false; // Disable BK heater 2
+        { BK_SSR2b = true;  max7219dig0 |=  MAX7219D0B2; } // Enable  BK heater 2
+   else { BK_SSR2b = false; max7219dig0 &= ~MAX7219D0B2; } // Disable BK heater 2
    // BK electric heater 3 not implemented yet
-   if (++cntr > 100) cntr = 1;
+
+   // Update frontpanel LEDs
+   max7219_write(MAX7219_DIG2 | max7219dig2);
+   max7219_write(MAX7219_DIG1 | max7219dig1);
+   max7219_write(MAX7219_DIG0 | max7219dig0);
+
+   if (++cntr > 100) cntr = 1; // reset time-division counter
 } // pwm_task()
 
 /*--------------------------------------------------------------------
@@ -525,7 +544,7 @@ void pwm_task(void)
   --------------------------------------------------------------------*/
 void thlt_task(void)
 {
-    int16_t  tmp; // temporary variable (signed Q8.7 format)
+    int16_t tmp;  // temporary variable (signed Q8.7 format)
     float   tmpf; // temporary variable
     
     thlt_old_87 = thlt_temp_87; // copy previous value of thlt_temp
@@ -536,9 +555,9 @@ void thlt_task(void)
         thlt_temp_87 = (int16_t)(moving_average(&thlt_ma, (float)tmp) + 0.5);
     } // if
     
-    tmpf      = read_adc(AD_LM35) * LM35_CONV;
+    tmpf      = read_adc(AD_LM35) * LM35_CONV; // Read LM35 temperature sensor
     lm35_temp = (uint16_t)moving_average(&lm35_ma, tmpf);
-    process_delayed_start(); // process delayed-start function
+    process_delayed_start();                   // Process delayed-start function
 } // thlt_task()
 
 /*--------------------------------------------------------------------
@@ -769,53 +788,54 @@ void print_IP_address(uint8_t *ip)
 /*-----------------------------------------------------------------------
   Purpose  : This function inits the WIZ550i Ethernet module by
              calling w5500_init() and spi_init(). If a valid MAC address
-			 is detected, then dhcp_begin() is started.
+	     is detected, dhcp_begin() is started.
   Variables: The IP-address to print
   Returns  : 1: success, 0: WIZ550IO not present
   -----------------------------------------------------------------------*/
 uint8_t init_WIZ550IO_module(void)
 {
-	char     s[30];   // Needed for uart_printf() and sprintf()
-	uint8_t  bufr[8]; // Needed for w5500_read_common_register()
-	uint8_t  ret,x;
-	uint16_t y;
-	
-	//---------------------------------------------------------------
-	// Reset WIZ550IO Ethernet module
-	//---------------------------------------------------------------
-        SPI_NRESETb = 0;           // Hardware reset for WIZ550io
-	delay_msec(2);             // At least 500 usec according to datasheet
-	SPI_NRESETb = 1;           // Disable hardware reset for WIZ550io
-	delay_msec(300);           // Giver W5500 time to configure itself (at least 150 msec)
+    char     s[30];   // Needed for uart_printf() and sprintf()
+    uint8_t  bufr[8]; // Needed for w5500_read_common_register()
+    uint8_t  ret,x;
+    uint16_t y;
+    
+    //---------------------------------------------------------------
+    // Reset WIZ550IO Ethernet module
+    //---------------------------------------------------------------
+    SPI_NRESETb = 0;           // Hardware reset for WIZ550io
+    delay_msec(2);             // At least 500 usec according to datasheet
+    SPI_NRESETb = 1;           // Disable hardware reset for WIZ550io
+    delay_msec(300);           // Giver W5500 time to configure itself (at least 150 msec)
 
-	ret = Ethernet_begin();    // includes w5500_init() & dhcp_begin()
-	if (ret == 0)              // Error, no WIZ550IO module found
-	{
-            ethernet_WIZ550i = false; // No ETH mode, switch back to USB
-            return 0;
-	} // if	
-	
-	x = udp_begin(EBREW_PORT_NR);           // init. UDP protocol
-	y = w5500_read_common_register(VERSIONR,bufr);
-	sprintf(s,"Version: 0x%02x\n",y);          uart_printf(s);
-	sprintf(s,"udp_begin():%d, sock=%d\n",x,_sock);   uart_printf(s);
-	x = w5500_read_socket_register(_sock, Sn_MR, bufr);
-	sprintf(s,"Sn_MR=%d, ",x);                        uart_printf(s);
-	local_port = w5500_read_socket_register(_sock, Sn_PORT, bufr);
-	sprintf(s,"Sn_PORT=%d, ",local_port);		  uart_printf(s);
-	y = w5500_getTXFreeSize(_sock);
-	sprintf(s,"Sn_TXfree=%d, ",y);			  uart_printf(s);
-	y = w5500_getRXReceivedSize(_sock);
-	sprintf(s,"Sn_RXrecv=%d\n",y);			  uart_printf(s);
-	w5500_read_common_register(SIPR, bufr);
-	uart_printf("Local IP   :"); print_IP_address(bufr);
-	for (x = 0; x < 4; x++) local_ip[x] = bufr[x]; // copy IP address
-	w5500_read_common_register(GAR, bufr);
-	uart_printf("Gateway IP :"); print_IP_address(bufr);
-	w5500_read_common_register(SUBR, bufr);
-	uart_printf("\nSubnet Mask:"); print_IP_address(bufr);	
-	uart_printf("\n");
-	return 1; // success
+    ret = Ethernet_begin();    // includes w5500_init() & dhcp_begin()
+    if (ret == 0)              // Error, no WIZ550IO module found
+    {
+        ethernet_WIZ550i = false; // No ETH mode, switch back to USB
+        return 0;
+    } // if	
+    
+    x = udp_begin(EBREW_PORT_NR);           // init. UDP protocol
+    y = w5500_read_common_register(VERSIONR,bufr);
+    sprintf(s,"Version: 0x%02x\n",y);          uart_printf(s);
+    sprintf(s,"udp_begin():%s, sock=%d\n",x ? "ok":"err",_sock);   uart_printf(s);
+    x = w5500_read_socket_register(_sock, Sn_MR, bufr);
+    sprintf(s,"Sn_MR=%d, ",x);                        uart_printf(s);
+    local_port = w5500_read_socket_register(_sock, Sn_PORT, bufr);
+    sprintf(s,"Sn_PORT=%d, ",local_port);		  uart_printf(s);
+    y = w5500_getTXFreeSize(_sock);
+    sprintf(s,"Sn_TXfree=%d, ",y);			  uart_printf(s);
+    y = w5500_getRXReceivedSize(_sock);
+    sprintf(s,"Sn_RXrecv=%d\n",y);			  uart_printf(s);
+    w5500_read_common_register(GAR, bufr);
+    uart_printf("Gateway IP : "); print_IP_address(bufr);
+    w5500_read_common_register(SUBR, bufr);
+    uart_printf("\nSubnet Mask: "); print_IP_address(bufr);	
+    w5500_read_common_register(SIPR, bufr);
+    uart_printf("\nLocal IP   : "); print_IP_address(bufr);
+    for (x = 0; x < 4; x++) local_ip[x] = bufr[x]; // copy IP address
+    sprintf(s,":%d\n",local_port); // add local port as read back from wiz550io module
+    uart_printf(s);
+    return 1; // success
 } // init_WIZ550IO_module()
 
 /*------------------------------------------------------------------
@@ -843,8 +863,9 @@ int main(void)
     i2c_init_bb(I2C_CH2);     // Init. I2C bus 2 for bit-banging
     //pwm_write(PWM_BK ,0);      // Start with 0 % duty-cycle for Boil-kettle
     //pwm_write(PWM_HLT,0);      // Start with 0 % duty-cycle for HLT
-    spi_init();               // Init. SPI module: 4 MHz clock, Master mode, SPI mode 1
-
+    spi_init();               // Init. SPI module: 6 MHz clock, Master mode, SPI mode 1
+    max7219_init();           // Init. MAX7219 on SPI-bus
+    
     check_and_init_eeprom();  // EEPROM init.
     read_eeprom_parameters(); // Read EEPROM value for ETHUSB and delayed-start
 	
@@ -866,12 +887,17 @@ int main(void)
     thlt_ow_87    = INIT_TEMP << 7;
     tmlt_ow_87    = INIT_TEMP << 7;
 
+    //---------------------------------------------
+    // Initialize Electric Heating Elements
+    //---------------------------------------------
     init_pwm_time(&pwmhlt1,HTR_HLT1,ON1ST);  // HLT Electric heating element 1
     init_pwm_time(&pwmhlt2,HTR_HLT2,OFF1ST); // HLT Electric heating element 2
     init_pwm_time(&pwmbk1 ,HTR_BK1 ,OFF1ST); // BK  Electric heating element 1
     init_pwm_time(&pwmbk2 ,HTR_BK2 ,ON1ST);  // BK  Electric heating element 2
 
-    // Initialize all the tasks for the E-Brew system
+    //---------------------------------------------
+    // Initialize all tasks for the Brew Hardware
+    //---------------------------------------------
     add_task(pwm_task  ,"pwm_task"  , 10,   50); // Electrical Heating Time-Division every 50 msec.
     add_task(owh_task  ,"owh_task"  ,120, 1000); // Process Temperature from DS18B20 HLT sensor
     add_task(owm_task  ,"owm_task"  ,220, 1000); // Process Temperature from DS18B20 MLT sensor
@@ -881,35 +907,32 @@ int main(void)
     add_task(tmlt_task ,"tmlt_task" ,620, 2000); // Process Temperature from TMLT sensor (I2C and/or OW)
 	
     __enable_interrupt();       // set global interrupt enable, start task-scheduler
+    uart_printf("\n");
     print_ebrew_revision(s);    // print revision number
     uart_printf(s);		// Output to COM-port for debugging
     if (ethernet_WIZ550i)       // Initialize Ethernet adapter
     {
-        uart_printf("init Wiz550IO:");
         if (init_WIZ550IO_module())
         {   // 1 = ok, DHCP-server found
                 bz_rpt_max = 1; // Sound buzzer once to indicate ethernet connection ready
                 bz_on      = true;
         } // if
-        uart_printf("starting main()\n");
-        print_IP_address(local_ip);
-        sprintf(s,":%d\n",local_port); // add local port as read back from wiz550io module
-        uart_printf(s);
     } // if
     sprintf(s,"CLK: 0x%X ",clk);
     uart_printf(s);
     if      (clk == HSI) uart_printf("HSI\n");
     else if (clk == LSI) uart_printf("LSI\n");
     else if (clk == HSE) uart_printf("HSE\n");
+    uart_printf("Starting main()\n");
 
     while(1)
     {
-        dispatch_tasks(); // run the task-scheduler
+        dispatch_tasks();                // run the task-scheduler
         switch (rs232_command_handler()) // run command handler continuously
         {
-            case ERR_CMD: uart_printf("Cmd Error\n"); 
+            case ERR_CMD: uart_printf("Cmd Err\n"); 
                           break;
-            case ERR_NUM: sprintf(s,"Num Error (%s)\n",rs232_inbuf);
+            case ERR_NUM: sprintf(s,"Num Err (%s)\n",rs232_inbuf);
                           uart_printf(s);  
                           break;
             case ERR_I2C: break; // do not print anything 

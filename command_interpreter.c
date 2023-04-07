@@ -29,9 +29,9 @@
 #include "pwm.h"
 #include "scheduler.h"
       
-extern uint8_t      remoteIP[4]; // remote IP address for the incoming packet whilst it's being processed
-extern uint8_t      ROM_NO[];    // One-wire hex-address
-extern uint8_t      crc8;
+extern uint8_t    remoteIP[4]; // remote IP address for the incoming packet whilst it's being processed
+extern uint8_t    ROM_NO[];    // One-wire hex-address
+extern uint8_t    crc8;
 
 extern bool       ethernet_WIZ550i;
 extern uint8_t    local_ip[4];         // local IP address received from dhcp_begin()
@@ -48,6 +48,10 @@ extern pwmtime    pwmbk1;              // Struct for Boil-kettle Electrical Heat
 extern pwmtime    pwmbk2;              // Struct for Boil-kettle Electrical Heater 1 Slow SSR signal
 
 extern uint16_t   lm35_temp;           // LM35 Temperature in E-2 °C
+
+extern uint8_t    max7219dig2;         // Frontpanel LEDs MAX7219 DIG2
+extern uint8_t    max7219dig1;         // Frontpanel LEDs MAX7219 DIG1
+extern uint8_t    max7219dig0;         // Frontpanel LEDs MAX7219 DIG0
 
 //------------------------------------------------------
 // The extension _87 indicates a signed Q8.7 format!
@@ -101,7 +105,7 @@ void pr(bool rs232_udp, char *s)
     if (rs232_udp == RS232_USB) 
          uart_printf(s);
     else udp_write((uint8_t *)s,strlen(s));
-} // pr
+} // pr()
 
 /*-----------------------------------------------------------------------------
   Purpose  : Scan all devices on the I2C bus on all channels of the PCA9544
@@ -194,10 +198,12 @@ uint8_t ethernet_command_handler(char *s)
 
 /*-----------------------------------------------------------------------------
   Purpose  : Finds a One-Wire device
-  Variables: i2c_addr: I2C-address of DS2482 bridge
+  Variables: ch       : the I2C channel number, 0 is the main channel
+             i2c_addr : I2C-address of DS2482 bridge
+             rs232_udp: [RS232_USB, ETHERNET_UDP] Response via RS232/USB or Ethernet/Udp
   Returns  : -
   ---------------------------------------------------------------------------*/
-void find_OW_device(enum I2C_CH ch, uint8_t i2c_addr)
+void find_OW_device(enum I2C_CH ch, uint8_t i2c_addr, bool rs232_udp)
 {
     char    s2[40]; // Used for printing to RS232 port
     uint8_t i,rval;
@@ -208,11 +214,12 @@ void find_OW_device(enum I2C_CH ch, uint8_t i2c_addr)
         for (i= 0; i < 8; i++)
         {
             sprintf(s2,"%02X ",ROM_NO[i]); // global array
-            uart_printf(s2);
-        } // for								 
+            pr(rs232_udp,s2); // print to UART or ETH
+        } // for	
+        pr(rs232_udp,"."); // conclude a MAC address
     } // if
-    else uart_printf("-");
-    uart_printf("\n");							 
+    else pr(rs232_udp,"-");
+    pr(rs232_udp,"\n");
 } // find_OW_device()
 
 /*-----------------------------------------------------------------------------
@@ -238,14 +245,14 @@ void process_pwm_signal(uint8_t pwm_ch, uint8_t pwm_val, uint8_t enable)
     if (enable & GAS_MODU)
     {	// Modulating gas-burner is enabled
         if (pwm_ch == PWM_BK)
-             BOIL_230Vb = true;
-        else HLT_230Vb  = true;
+             { BOIL_230Vb = true; max7219dig0 |= MAX7219D0BG; }
+        else { HLT_230Vb  = true; max7219dig0 |= MAX7219D0HG; }
     } // if	
     else 
     {   // Modulating gas-burner is disabled
         if (pwm_ch == PWM_BK) 
-             BOIL_230Vb = false;
-        else HLT_230Vb  = false;
+             { BOIL_230Vb = false; max7219dig0 &= ~MAX7219D0BG; }
+        else { HLT_230Vb  = false; max7219dig0 &= ~MAX7219D0HG; }
     } // else
     pwm_write(pwm_ch, pwm_val);  // write PWM value to Timer 1 and 3 channels
     
@@ -255,29 +262,29 @@ void process_pwm_signal(uint8_t pwm_ch, uint8_t pwm_val, uint8_t enable)
     //----------------------------------------------------------------
     if (pwm_ch == PWM_HLT)
     {	// Currently, only the HLT has 2 electric heating-elements
-            if (enable & ELEC_HTR1)
-            {   // HLT Electric heating-element 1
-                    hlt_elec1_pwm = pwm_val; // set value for pwm_task() / pwm_2_time()
-            } 	// if
-            else hlt_elec1_pwm = 0; // disable electric heater
-            if (enable & ELEC_HTR2)
-            {   // HLT Electric heating-element 2
-                    hlt_elec2_pwm = pwm_val; // set value for pwm_task() / pwm_2_time()
-            } 	// if
-            else hlt_elec2_pwm = 0; // disable electric heater
+        if (enable & ELEC_HTR1)
+        {   // HLT Electric heating-element 1
+            hlt_elec1_pwm = pwm_val; // set value for pwm_task() / pwm_2_time()
+        } // if
+        else hlt_elec1_pwm = 0; // disable electric heater
+        if (enable & ELEC_HTR2)
+        {   // HLT Electric heating-element 2
+            hlt_elec2_pwm = pwm_val; // set value for pwm_task() / pwm_2_time()
+        } // if
+        else hlt_elec2_pwm = 0; // disable electric heater
     } // if
     else 
-    { // Boil-kettle: support here for 2 electric heating elements
-            if (enable & ELEC_HTR1)
-            {   // BK Electric heating-element 1
-                    bk_elec1_pwm = pwm_val; // set value for pwm_task() / pwm_2_time()
-            } 	// if
-            else bk_elec1_pwm = 0; // disable electric heater
-            if (enable & ELEC_HTR2)
-            {   // BK Electric heating-element 2
-                    bk_elec2_pwm = pwm_val; // set value for pwm_task() / pwm_2_time()
-            } 	// if
-            else bk_elec2_pwm = 0; // disable electric heater
+    {   // Boil-kettle: support here for 2 electric heating elements
+        if (enable & ELEC_HTR1)
+        {   // BK Electric heating-element 1
+            bk_elec1_pwm = pwm_val; // set value for pwm_task() / pwm_2_time()
+        } // if
+        else bk_elec1_pwm = 0; // disable electric heater
+        if (enable & ELEC_HTR2)
+        {   // BK Electric heating-element 2
+            bk_elec2_pwm = pwm_val; // set value for pwm_task() / pwm_2_time()
+        } // if
+        else bk_elec2_pwm = 0; // disable electric heater
     } // else		    
 } // process_pwm_signal()
 
@@ -335,7 +342,7 @@ void process_flows(uint32_t flow_val, char *name, uint8_t last)
 
 /*-----------------------------------------------------------------------------
   Purpose  : list all tasks and send result to the UART or ETH
-  Variables: -
+  Variables: rs232_udp: [RS232_USB, ETHERNET_UDP] Response via RS232/USB or Ethernet/Udp
  Returns   : -
   ---------------------------------------------------------------------------*/
 void list_all_tasks(bool rs232_udp)
@@ -349,7 +356,7 @@ void list_all_tasks(bool rs232_udp)
     {
         while ((index < MAX_TASKS) && (task_list[index].Period != 0))
         {
-            sprintf(s,"%s,%d,%x,%d,%d\n", task_list[index].Name, 
+            sprintf(s,"%s,%d,%x,%d,%d,\n", task_list[index].Name, 
                     task_list[index].Period  , task_list[index].Status, 
                     task_list[index].Duration, task_list[index].Duration_Max);
             pr(rs232_udp,s); // print to USB or ETH
@@ -378,10 +385,9 @@ void list_all_tasks(bool rs232_udp)
    - P0 / P1      : set Pump OFF / ON
    - R0           : Reset all flows
    - S0           : Ebrew hardware revision number (also disables delayed-start)
-     S1		  : List value of parameters that can be set with Nx command
-     S2           : List all connected I2C devices  
-     S3           : List all tasks
-     S4           : List One-Wire devices
+     S1		  : List all connected I2C devices  
+     S2           : List all tasks
+     S3           : List One-Wire devices
    - V0...V255    : Output bits for valves V1 until V8
    - X0...X8      : Sound buzzer x times
  
@@ -527,20 +533,20 @@ uint8_t execute_single_command(char *s, bool rs232_udp)
                if (num > 1) rval = ERR_NUM;
                else
                {
-                   if (num) ALIVE_LED_Bb = 1;
-                   else     ALIVE_LED_Bb = 0;
+                   if (num) { ALIVE_LED_Bb = 1; max7219dig2 |=  MAX7219D2LV; }
+                   else     { ALIVE_LED_Bb = 0; max7219dig2 &= ~MAX7219D2LV; }
                } // else
                break;
-               
            
 	   case 'p': // Pump
                if (num > 3) rval = ERR_NUM;
                else 
-               {
-                   if (num & 0x01) PUMP_230Vb  = 1;  // Main Brew-Pump
-                   else            PUMP_230Vb  = 0;
-                   if (num & 0x02) PUMP2_230Vb = 1; // Pump 2 for HLT heat-exchanger
-                   else            PUMP2_230Vb = 0;
+               {   // Main Brew-Pump
+                   if (num & 0x01) { PUMP_230Vb  = 1; max7219dig2 |=  MAX7219D2P1; } 
+                   else            { PUMP_230Vb  = 0; max7219dig2 &= ~MAX7219D2P1; }
+                   // Pump 2 for HLT heat-exchanger
+                   if (num & 0x02) { PUMP2_230Vb = 1; max7219dig2 |=  MAX7219D2P2; }
+                   else            { PUMP2_230Vb = 0; max7219dig2 &= ~MAX7219D2P2; }
                } // else
                break;
                
@@ -566,7 +572,7 @@ uint8_t execute_single_command(char *s, bool rs232_udp)
                        delayed_start_enable = false;  // disable delayed-start when PC program is powering-up
                        break;
                    case 1: // List all I2C devices
-                       i2c_scan(I2C_CH0, rs232_udp);  // Start with main I2C channel
+                       i2c_scan(I2C_CH0, rs232_udp); // Start with main I2C channel
                        i2c_scan(I2C_CH1, rs232_udp); // I2C channel 1 (THLT)
                        i2c_scan(I2C_CH2, rs232_udp); // I2C channel 2 (TMLT)
                        break;
@@ -574,10 +580,10 @@ uint8_t execute_single_command(char *s, bool rs232_udp)
                        list_all_tasks(rs232_udp); 
                        break;	
                    case 3: // List all One-Wire Devices (finding a sensor costs approx. 350 msec.)
-                       find_OW_device(I2C_CH0,DS2482_THLT_BASE);  // Find ROM ID of HLT  DS18B20
-                       find_OW_device(I2C_CH0,DS2482_TBOIL_BASE); // Find ROM ID of BOIL DS18B20
-                       find_OW_device(I2C_CH0,DS2482_TCFC_BASE);  // Find ROM ID of CFC  DS18B20
-                       find_OW_device(I2C_CH0,DS2482_TMLT_BASE);  // Find ROM ID of MLT  DS18B20
+                       find_OW_device(I2C_CH0,DS2482_THLT_BASE ,rs232_udp); // Find ROM ID of HLT  DS18B20
+                       find_OW_device(I2C_CH0,DS2482_TBOIL_BASE,rs232_udp); // Find ROM ID of BOIL DS18B20
+                       find_OW_device(I2C_CH0,DS2482_TCFC_BASE ,rs232_udp); // Find ROM ID of CFC  DS18B20
+                       find_OW_device(I2C_CH0,DS2482_TMLT_BASE ,rs232_udp); // Find ROM ID of MLT  DS18B20
                        break;
                    default: rval = ERR_NUM;
                    break;
@@ -589,8 +595,9 @@ uint8_t execute_single_command(char *s, bool rs232_udp)
                break;
                
 	   case 'v': // Output Valve On-Off signals to hardware
-               rval = 78;
-               PB_ODR = num; // write valve bits to PORTB
+               rval        = 78;
+               PB_ODR      = num; // write valve bits to PORTB
+               max7219dig1 = num; // write valve bits to frontpanel LEDs
                break;
                
 	   case 'x': // Sound Buzzer

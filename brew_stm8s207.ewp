@@ -1658,6 +1658,12 @@
         <name>$PROJ_DIR$\i2c_bb.h</name>
     </file>
     <file>
+        <name>$PROJ_DIR$\max7219.c</name>
+    </file>
+    <file>
+        <name>$PROJ_DIR$\max7219.h</name>
+    </file>
+    <file>
         <name>$PROJ_DIR$\misc.c</name>
     </file>
     <file>
