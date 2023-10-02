@@ -507,6 +507,11 @@ void pwm_task(void)
    max7219_write(MAX7219_DIG2 | max7219dig2);
    max7219_write(MAX7219_DIG1 | max7219dig1);
    max7219_write(MAX7219_DIG0 | max7219dig0);
+   max7219_write(MAX7219_DIG3 | 0xFF);
+   max7219_write(MAX7219_DIG4 | 0xFF);
+   max7219_write(MAX7219_DIG5 | 0xFF);
+   max7219_write(MAX7219_DIG6 | 0xFF);
+   max7219_write(MAX7219_DIG7 | 0xFF);
 
    if (++cntr > 100) cntr = 1; // reset time-division counter
 } // pwm_task()
@@ -863,7 +868,7 @@ int main(void)
     i2c_init_bb(I2C_CH2);     // Init. I2C bus 2 for bit-banging
     //pwm_write(PWM_BK ,0);      // Start with 0 % duty-cycle for Boil-kettle
     //pwm_write(PWM_HLT,0);      // Start with 0 % duty-cycle for HLT
-    spi_init();               // Init. SPI module: 6 MHz clock, Master mode, SPI mode 1
+    spi_init();               // Init. SPI module: 3 MHz clock, Master mode, SPI mode 1
     max7219_init();           // Init. MAX7219 on SPI-bus
     
     check_and_init_eeprom();  // EEPROM init.

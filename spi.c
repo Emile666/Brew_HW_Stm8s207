@@ -32,10 +32,9 @@ uint8_t spi_error;
 void spi_init(void)
 {
     SPI_CR1_SPE = 0;     // Disable SPI
-    SPI_CR1     = 0x0C;  // MSB first, disable SPI, 6 MHz clock, Master mode, SPI mode 0
+    SPI_CR1     = 0x14;  // MSB first, disable SPI, 3 MHz clock, Master mode, SPI mode 0
     SPI_CR2     = 0x03;  // Select SW Slave Management and Master mode
     SPI_ICR     = 0x00;  // Disable SPI interrupt on error
-    SPI_CR1_SPE = 1;     // Enable SPI
     // SPI_NSS is already set to Output and a high-level by GPIO init.
 } // spi_init()
 
@@ -45,7 +44,7 @@ void spi_init(void)
   Returns  : -
   ---------------------------------------------------------------------------*/
 void spi_write(uint8_t data)
-{   // At 6 Mbps, writing a byte takes approx. 1.3 usec.
+{   // At 3 Mbps, writing a byte takes approx. 2.5 usec.
     while (!SPI_SR_TXE) delay_usec(5); // wait until TX Register is empty
     SPI_DR = data; // send byte over SPI bus
     while (!SPI_SR_TXE) delay_usec(5); // wait until TX Register is empty
@@ -69,11 +68,16 @@ uint8_t spi_read(void)
 
 void spi_set_ss(void)    
 { 
-	SPI_SSb = 0; 
+    SPI_SSb     = 0;     // Enable chip-select
+    SPI_CR1_SPE = 1;     // Enable SPI
 } // spi_set_ss()
 
 void spi_reset_ss(void)    
 { 
-	SPI_SSb = 1; 
+    while (!SPI_SR_TXE)  delay_usec(5); // wait until TX Register is empty
+    while (SPI_SR_BSY)   delay_usec(5); // wait until SPI is not busy anymore
+    SPI_DR;           // dummy read;
+    SPI_SSb     = 1;  // Disable chip-select
+    SPI_CR1_SPE = 0;  // Disable SPI
 } // spi_reset_ss()
 

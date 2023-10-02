@@ -53,7 +53,11 @@ void max7219_init(void)
 void max7219_write(uint16_t dat)
 {
     SPI_CS_LEDSb = 0;      // Enable CS pin of MAX7219
+    SPI_CR1_SPE = 1;       // Enable SPI
     spi_write(dat >> 8);   // write bits D15-D08
+    spi_read();
     spi_write(dat & 0xFF); // write bits D07-D00
+    spi_read();
     SPI_CS_LEDSb = 1;      // Disable CS pin of MAX7219
+    SPI_CR1_SPE  = 0;      // Disable SPI
 } // max7219_write()

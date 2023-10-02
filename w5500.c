@@ -45,7 +45,9 @@ uint16_t w5500_read(uint16_t addr, uint8_t cb, uint8_t *buf, uint16_t len)
     
     spi_set_ss();
     spi_write(addr >> 8);   // MSB of 16-bit address
+    //spi_read();             // dummy read
     spi_write(addr & 0xFF); // LSB of 16-bit address
+    //spi_read();             // dummy read
     spi_write(cb);          // control-byte
     spi_read();             // dummy read
     for (i = 0; i < len; i++)
@@ -135,11 +137,15 @@ uint16_t w5500_write(uint16_t addr, uint8_t cb, const uint8_t *buf, uint16_t len
     
     spi_set_ss();
     spi_write(addr >> 8);   // MSB of 16-bit address
+    spi_read();             // dummy read
     spi_write(addr & 0xFF); // LSB of 16-bit address
+    spi_read();             // dummy read
     spi_write(cb);          // control-byte
+    spi_read();             // dummy read
     for (i = 0; i < len; i++)
     {
         spi_write(buf[i]);  // write byte
+        spi_read();         // dummy read
     } // for
     spi_reset_ss();
     return len; // #bytes written
