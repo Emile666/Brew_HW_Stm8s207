@@ -24,7 +24,7 @@
                                 
       MCU pin-name            Function    |    MCU pin-name        Function
    ---------------------------------------|-----------------------------------------
-   01 NRST                    <NRST>      | 64 PD7/TLI                -
+   01 NRST                    <NRST>      | 64 PD7/TLI                SPI_CS_LEDS
    02 PA1/OSCIN               XTAL 24 MHz | 63 PD6/UART3_RX           RX
    03 PA2/OSCOUT              XTAL 24 MHz | 62 PD5/UART3_TX           TX
    04 VSSIO_1                 GND         | 61 PD4(HS)/TIM2_CH1[BEEP] BUZZER
@@ -100,8 +100,8 @@
 #define HLT_PWM     (0x02) /* PC1/TIM1_CH1 PWM output for HLT */       
 
 // use these defines to directly control the output-pins
-#define BOIL_230Vb  (PC_ODR_ODR4) /* TODO PC4 On/Off control modulating gas-valve 230V */
-#define HLT_230Vb   (PC_ODR_ODR3) /* TODO PC3 On/Off control modulating HLT gas-valve 230V */
+#define BOIL_230Vb  (PC_ODR_ODR4) /* PC4 On/Off control modulating gas-valve 230V */
+#define HLT_230Vb   (PC_ODR_ODR3) /* PC3 On/Off control modulating HLT gas-valve 230V */
       
 //-----------------------------
 // PORT D defines
@@ -109,7 +109,7 @@
 #define SPI_CS_LEDS (0x80) /* PD7 chip-select for MAX7219 */
 #define RX          (0x40) /* PD6 UART 3 */
 #define TX          (0x20) /* PD5 UART 3 */
-#define BUZZER      (0x10) /* PD4 */
+#define BUZZER      (0x10) /* PD4 Buzzer */
 #define BK_SSR3     (0x08) /* Boil-kettle slow SSR output 3, electric heating */
 #define BK_SSR2     (0x04) /* Boil-kettle slow SSR output 2, electric heating */
 #define SWIM        (0x02) /* PD1 SWIM */

@@ -27,8 +27,6 @@ extern uint32_t flow_mlt_boil;
 extern uint32_t flow_cfc_out; // Count from flow-sensor at output of CFC
 extern uint32_t flow4;        // Count from FLOW4 (future use)
 
-uint8_t x; // debug
-
 //------------------------------------------------
 // Buzzer variables
 //------------------------------------------------
@@ -52,7 +50,7 @@ void buzzer(void)
     {
         case BZ_OFF:   BEEP_CSR_BEEPEN  = 0;       //  Turn off the beep.
                        BEEP_CSR_BEEPSEL = bz_freq; //  0=1 kHz, 1=2 kHz, 2=4 kHz
-                       BEEP_CSR_BEEPDIV = 14;      //  Set beep divider to 129/8 kHz
+                       BEEP_CSR_BEEPDIV = 14;      //  Set beep divider to 128/16=8 kHz
                        if (bz_on) 
                        {
                                bz_tmr = 0;
@@ -181,7 +179,7 @@ uint8_t initialise_system_clock(uint8_t clk)
   Purpose  : This routine initialises Timer 2 to generate a 1 kHz interrupt.
              16 MHz: 16 MHz / (  16 *  1000) = 1000 Hz (1000 = 0x03E8)
              24 MHz: 24 MHz / (  16 *  1500) = 1000 Hz (1500 = 0x05DC)
-  Variables: -
+  Variables: clk: HSE (24 MHz), HSI (16 MHz)
   Returns  : -
   ---------------------------------------------------------------------------*/
 void setup_timers(uint8_t clk)
@@ -267,10 +265,10 @@ void setup_gpio_ports(void)
     // Set ST-LINK->Option Bytes...->AFR7 to 'Alternate Active'
     // PWM-outputs (PD2=HLT_SSR, PD0=BK_SSR) are controlled by Timer outputs
     // SSR-outputs control 3-phase electric heating elements
-    PD_ODR     |=  SPI_CS_LEDS;                                 // MAX7219 CS is disabled
-    PD_DDR     |=  (SPI_CS_LEDS | BK_SSR3 | BK_SSR2 | BK_SSR1); // SSR outputs
-    PD_CR1     |=  (SPI_CS_LEDS | BK_SSR3 | BK_SSR2 | BK_SSR1); // Set to Push-Pull
-    PD_ODR     &= ~(BK_SSR3 | BK_SSR2 | BK_SSR1);               // SSR Outputs are off
+    PD_ODR     |=  SPI_CS_LEDS;                                          // MAX7219 CS is disabled
+    PD_DDR     |=  (SPI_CS_LEDS | BK_SSR3 | BK_SSR2 | BK_SSR1 | BUZZER); // SSR outputs
+    PD_CR1     |=  (SPI_CS_LEDS | BK_SSR3 | BK_SSR2 | BK_SSR1 | BUZZER); // Set to Push-Pull
+    PD_ODR     &= ~(BK_SSR3 | BK_SSR2 | BK_SSR1 | BUZZER);               // SSR Outputs are off
     
     PE_ODR     |=  (SCL1 | SDA1 | SCL0 | SDA0 | SPI_SS); // Must be set here, or I2C will not work
     PE_DDR     |=  (SCL1 | SDA1 | SCL0 | SDA0 | SPI_SS); // Set as outputs
@@ -278,13 +276,7 @@ void setup_gpio_ports(void)
     PE_DDR     &= ~(FLOW2 | FLOW3 | FLOW4);     // Set as inputs
     PE_CR1     &= ~(FLOW2 | FLOW3 | FLOW4);     // Enable pull-up
     PE_CR2     |=  (FLOW2 | FLOW3 | FLOW4);     // Enable Interrupt 
-    EXTI_CR2   |=  0x02;  // PORTE external interrupt to falling edge only
-//    Only needed for HSE test debug output
-//    PE_DDR |= FLOW2; // output for CCO
-//    PE_CR1 |= FLOW2; // push-pull
-//    PE_CR2 |= FLOW2; // 10 MHz
-//    CLK_CCOR_CCOSEL = 0x08; // fcpu/16
-//    CLK_CCOR_CCOEN = 1;
+    EXTI_CR2   |=  0x02;                        // PORTE external interrupt to falling edge only
     
     // LM35 (PF0) is controlled by ADC device, PF7-PF5 are free
     // SSR-outputs control 3-phase electric heating elements

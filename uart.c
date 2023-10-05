@@ -89,12 +89,10 @@ __interrupt void UART_RX_IRQHandler(void)
   ------------------------------------------------------------------*/
 void uart_init(uint8_t clk)
 {
-    //
     //  Clear the Idle Line Detected bit in the status register by a read
     //  to the UART1_SR register followed by a Read to the UART1_DR register.
-    //
-    uint8_t tmp = UART1_SR;
-    tmp         = UART1_DR;
+    UART1_SR; // read from status register
+    UART1_DR; // Read from data register
 
     //  Reset the UART registers to the reset values.
     UART1_CR1  = 0;

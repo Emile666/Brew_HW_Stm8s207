@@ -17,7 +17,7 @@
  
   You should have received a copy of the GNU General Public License
   along with this file. If not, see <http://www.gnu.org/licenses/>.
-  ==================================================================*/
+  ================================================================== */
 #include "max7219.h"
 #include "stm8_hw_init.h"
 #include "spi.h"
@@ -36,13 +36,13 @@ void max7219_init(void)
 {
     max7219_write(MAX7219_TEST);         // Normal operation
     max7219_write(MAX7219_DECD);         // No decode for digits 7-0
-    max7219_write(MAX7219_INTNS | 0x03); // Set intensity to 7/32
+    max7219_write(MAX7219_INTNS | 0x05); // Set intensity to 7/32
     max7219_write(MAX7219_SCANL | 0x02); // Display digits 0, 1 and 2
     max7219_write(MAX7219_SHUTD | 0x01); // Normal operation
     
-    max7219_write(MAX7219_DIG0); // reset digit 0
-    max7219_write(MAX7219_DIG1); // reset digit 1
-    max7219_write(MAX7219_DIG2 | 0x80); // reset digit 2, Alive LED on
+    max7219_write(MAX7219_DIG0);         // reset digit 0
+    max7219_write(MAX7219_DIG1);         // reset digit 1
+    max7219_write(MAX7219_DIG2 | 0x80);  // reset digit 2, Alive LED on
 } // max7219_init()
 
 /*------------------------------------------------------------------
@@ -55,9 +55,9 @@ void max7219_write(uint16_t dat)
     SPI_CS_LEDSb = 0;      // Enable CS pin of MAX7219
     SPI_CR1_SPE = 1;       // Enable SPI
     spi_write(dat >> 8);   // write bits D15-D08
-    spi_read();
+    //spi_read();
     spi_write(dat & 0xFF); // write bits D07-D00
-    spi_read();
+    //spi_read();
     SPI_CS_LEDSb = 1;      // Disable CS pin of MAX7219
     SPI_CR1_SPE  = 0;      // Disable SPI
 } // max7219_write()

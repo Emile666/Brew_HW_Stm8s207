@@ -17,12 +17,9 @@
  
   You should have received a copy of the GNU General Public License
   along with this file.  If not, see <http://www.gnu.org/licenses/>.
-  ==================================================================
-*/ 
+  ================================================================== */ 
 #include "spi.h"
 #include "delay.h"
-
-uint8_t spi_error;
 
 /*-----------------------------------------------------------------------------
   Purpose  : This function initializes the SPI bus controller
@@ -66,12 +63,22 @@ uint8_t spi_read(void)
     return reg;
 } // spi_read()
 
+/*-----------------------------------------------------------------------------
+  Purpose  : This function enables the chip-select line for the Wiz550IO
+  Variables: --
+  Returns  : -
+  ---------------------------------------------------------------------------*/
 void spi_set_ss(void)    
 { 
     SPI_SSb     = 0;     // Enable chip-select
     SPI_CR1_SPE = 1;     // Enable SPI
 } // spi_set_ss()
 
+/*-----------------------------------------------------------------------------
+  Purpose  : This function disables the chip-select line for the Wiz550IO
+  Variables: --
+  Returns  : -
+  ---------------------------------------------------------------------------*/
 void spi_reset_ss(void)    
 { 
     while (!SPI_SR_TXE)  delay_usec(5); // wait until TX Register is empty

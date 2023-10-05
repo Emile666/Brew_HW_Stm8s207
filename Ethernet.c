@@ -39,7 +39,7 @@ int Ethernet_begin(void)
   uint8_t mac_address[6] = {0,};
   uint8_t tmp[4] = {0,0,0,0};
   int ret = 0;
-  char s[30];
+  char s[35];
   	  
   // Initialize the basic info
   uart_printf("w5500_init():");

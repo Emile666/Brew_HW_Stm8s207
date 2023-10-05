@@ -17,7 +17,7 @@
  
   You should have received a copy of the GNU General Public License
   along with this software.  If not, see <http://www.gnu.org/licenses/>.
-  ==================================================================*/ 
+  ================================================================== */ 
 #include "misc.h"
 
 void init_moving_average(ma *p, uint8_t N, float init_val)

@@ -16,179 +16,18 @@
  
   You should have received a copy of the GNU General Public License
   along with this software.  If not, see <http://www.gnu.org/licenses/>.
-  ==================================================================
+  ------------------------------------------------------------------
+  Revision 2.04  2023/10/03 Emile
+  - Revision history before rev. 2.00 removed
+  - Code clean-up
+  - 3 phase electric heating enabled
+  - Delayed-start now set to 100%
+
+  Revision 2.03  2023/10/02  Emile
+  - MAX7219 PCB and Ethernet now work together 
+
   Revision 2.00  2021/03/31 12:20  Emile
   - Ported from Brew_Arduino rev. r1.39 for e-brew PCB v4.01 
-
-  Revision 1.39  2021/03/14 11:25:00  Emile
-  - Green Alive LED now shows interrupt activity
-
-  Revision 1.38  2021/03/14 11:25:00  Emile
-  - Larger reset times for WIZ550io
-  - E2 command now with IP-address
-
-  Revision 1.37  2021/01/27 21:44:00  Emile
-  - thlt_ow and tmlt_ow now sent separately to PC
-
-  Revision 1.36  2020/08/17 17:33:00  Emile
-  - Bug-fix HLT PWM output: delayed-start function blocked this.
-
-  Revision 1.35  2020/05/10 14:38:00  Emile
-  - delayed-start function added with eeprom save
-  - D0, D1 and D2 commands for delayed-start added
-
-  Revision 1.34  2018/10/25 11:12:00  Emile
-  - Bugfix MCP23017 addressing, IOCON definition was for BANK==1. Now all
-    definitions are for BANK==0, which is the default at power-up.
-  - Buzzer alarm added to PD3 + Xx command added
-
-  Revision 1.33  2018/03/11 15:40:00  Emile
-  - Bugfix: for some reason, the MCP23017_init() routine needs to be called twice.
-            With Ethernet operations, there's no reset anymore from the USB, and
-            setting IO on the MCP23017 did not work. Corrected by calling the
-            MCP23017_init() twice. Not nice, but it works.
-
-  Revision 1.32  2018/02/18 15:55:00  Emile
-  - Better debugging info for ETH start, DHCP timeouts larger, E2 command added.
-  - Bug-fix Ethernet_begin(): SHAR register should be used for reading MAC address.
-  - R0 (reset flows) command added
-
-  Revision 1.31  2018/02/10 16:24:12  Emile
-  - LocalPort and LocalIP no longer stored in EEPROM: LocalIP is init by DHCP
-    and LocalPort should always be set to 8888.
-
-  Revision 1.30  2016/10/30 11:01:21  Emile
-  - More relaxed I2C addressing per channel. Any LM92 address is now accepted
-    for HLT and MLT temperature sensor.
-
-  Revision 1.29  2016/08/07 13:46:51  Emile
-  - Pump 2 (HLT heat-exchanger pump) is now supported with Px command.
-
-  Revision 1.28  2016/06/11 16:50:07  Emile
-  - I2C_start() performance improved, one-wire duration from 22 -> 6 msec.
-  - Network communication now works using DHCP
-
-  Revision 1.28  2016/05/22 12:14:58  Emile
-  - Baud-rate to 38400 Baud.
-  - Temperature error value now set to '-99.99'.
-
-  Revision 1.27  2016/05/15 12:24:20  Emile
-  - I2C clock speed now adjustable
-  - IP address and port now stored in eeprom
-
-  Revision 1.26  2016/04/16 19:39:04  Emile
-  - Bugfix reading flowsensor values
-  - Bugfix Tcfc and Tboil reading tasks.
-
-  Revision 1.25  2016/04/16 11:22:58  Emile
-  - One temperature slope parameter for all temps. Now fixed value (2 degrees/second).
-  - Temp. Offset parameters removed.
-  - All parameters > 12 removed from parameter list. Now only pars 1-6 left.
-  - Tasks for CFC and Boil Temperature added.
-
-  Revision 1.24  2016/04/01 14:06:08  Emile
-  - Bugfix PWM generation. Now both PWM signals work with PCB v3.30.
-
-  Revision 1.23  2016/01/10 16:00:23  Emile
-  First version (untested!) for new HW PCB 3.30 with 4 x temperature, 4 x flowsensor and 2 PWM outputs.
-  - Added: owb_task(), owc_task(), tcfc_ and tboil_ variables. Removed: vhlt_ and vhlt_ variables.
-  - A5..A8 commands added (flowsensors), A1..A4 commands re-arranged.
-  - Wxxx command is now Hxxx command, new Bxxx command added.
-  - pwm_write() and pwm_2_time() now for 2 channels (HLT and Boil): OCR1A and OCR1B timers used.
-  - SPI_SS now from PB2 to PD7 (OC1B/PB2 used for 2nd PWM signal). PWM freq. now set to 25 kHz.
-  - PCINT1_vect now works with 4 flowsensors: flow_cfc_out and flow4 added.
-  - MCP23017 instead of MCP23008: PORTB used for HLT_NMOD, HLT_230V, BOIL_NMOD, BOIL_230V and PUMP_230V.
-  - set_parameter(): parameters 7-12 removed.
-
-  Revision 1.22  2015/08/07 13:32:04  Emile
-  - OW_task() split into owh_task() and owm_task(). Blocking time now reduced
-    from 34 msec. to 24 msec.
-
-  Revision 1.21  2015/08/06 14:41:16  Emile
-  - Adapted for MCP23008 instead of MCP23017.
-
-  Revision 1.20  2015/07/01 21:03:46  Emile
-  - Bug-fix in scheduler time-measurement. Now reads proper time in msec
-  - Usart comm. now IRQ driven, so that all receiving commands are handled
-  - DS18B20 reads only 2 bytes (instead of 9). Total time taken is now 28 msec.
-    This was 60 msec. and caused multiple reads at PC side.
-
-  Revision 1.19  2015/06/28 12:27:35  Emile
-  - Moving_average filters now work with Q8.7 instead of Q8.4 format
-  - One-wire functions now work with DS18B20
-  - Separate ow_task() added for one-wire communication
-  - I2C clock made adjustable
-
-  Revision 1.18  2015/06/05 13:51:04  Emile
-  - Headers added to one_wire sources
-
-  Revision 1.17  2015/05/31 10:28:57  Emile
-  - Bugfix: Flowsensor reading counted rising and falling edges.
-  - Bugfix: Only valve V8 is written to at init (instead of all valves).
-
-  Revision 1.16  2015/05/12 14:18:37  Emile
-  - HW-bugfix: MCP23017 output latches needs to be written first with 0xFF.
-
-  Revision 1.15  2015/05/09 14:37:37  Emile
-  - I2C Channel & HW-address update for MCP23017 to reflect changes in HW PCB V3.01
-
-  Revision 1.14  2015/05/09 13:36:54  Emile
-  - MCP23017 Port B now always input. Port A Pull-up resistors enabled.
-  - Bug-fix for HW PCB V3.01
-
-  Revision 1.13  2014/11/30 20:44:45  Emile
-  - Vxxx command added to write valve output bits
-  - mcp23017 (16 bit I2C IO-expander) routines + defines added
-
-  Revision 1.12  2014/11/09 15:38:34  Emile
-  - PUMP_LED removed from PD2, PUMP_230V has same function
-  - Interface for 2nd waterflow sensor added to PD2
-  - Command A6 (read waterflow in E-2 L) added
-  - FLOW_PER_L changed to 330 (only rising edge is counted)
-
-  Revision 1.11  2014/10/26 12:44:47  Emile
-  - A3 (Thlt) and A4 (Tmlt) commands now return '99.99' in case of I2C HW error.
-
-  Revision 1.10  2014/06/15 14:52:19  Emile
-  - Commands E0 and E1 (Disable/Enable Ethernet module) added
-  - Interface for waterflow sensor added to PC3/ADC3
-  - Command A5 (read waterflow in E-2 L) added
-
-  Revision 1.9  2014/06/01 13:51:49  Emile
-  - Update CVS revision number
-
-  Revision 1.8  2014/05/03 11:27:43  Emile
-  - Ethernet support added for W550io module
-  - No response for L, N, P, W commands anymore
-  - All source files now have headers
-
-  Revision 1.7  2013/07/24 13:46:39  Emile
-  - Minor changes in S1, S2 and S3 commands to minimize comm. overhead.
-  - Version ready for Integration Testing with PC program!
-
-  Revision 1.6  2013/07/23 19:33:17  Emile
-  - Bug-fix slope-limiter function. Tested on all measurements.
-
-  Revision 1.5  2013/07/21 13:10:43  Emile
-  - Reading & Writing of 17 parameters now fully works with set_parameter()
-  - VHLT and VMLT tasks added
-  - Scheduler: actual & max. times now printed in msec. instead of usec.
-  - THLT and TMLT now in E-2 Celsius for PC program
-  - All lm92 test routines removed, only one lm92_read() remaining
-
-  Revision 1.4  2013/07/20 14:51:59  Emile
-  - LM35, THLT and TMLT tasks are now working
-  - Max. duration added to scheduler
-  - slope_limiter & lm92_read() now work with uint16_t instead of float
-
-  Revision 1.3  2013/07/19 10:51:01  Emile
-  - I2C frequency 50 50 kHz to get 2nd LM92 working
-  - Command Mx removed, command N0 x added, commands N0..N3 renamed to N1..N4
-  - Command S3 added, list_all_tasks. To-Do: get timing-measurement working
-  - Scheduler added with 3 tasks: lm35, led_blink and pwm_2_time
-
-  Revision 1.2  2013/06/23 08:56:03  Emile
-  - Working version (with PC program) with new command-set.
   ================================================================== */ 
 #include "brew_stm8s207.h"
 #include "stm8_hw_init.h"
@@ -203,7 +42,7 @@ extern char rs232_inbuf[];
 // Global variables
 uint8_t      local_ip[4]      = {0,0,0,0}; // local IP address, gets a value from init_WIZ550IO_module() -> dhcp_begin()
 uint16_t     local_port;                   // local port number read back from wiz550i module
-const char  *ebrew_revision   = "$Revision: 2.03 $"; // ebrew revision number
+const char  *ebrew_revision   = "$Revision: 2.04 $"; // ebrew revision number
 bool         ethernet_WIZ550i = true;		     // true = start WIZ550i at power-up
 
 // The following variables are defined in Udp.c
@@ -221,12 +60,16 @@ extern uint8_t  bz_rpt_max; // number of beeps to make
 //-----------------------------------
 uint8_t  hlt_elec1_pwm = 0;       // PWM signal (0-100 %) for HLT Electric Heating 1
 uint8_t  hlt_elec2_pwm = 0;       // PWM signal (0-100 %) for HLT Electric Heating 2
+uint8_t  hlt_elec3_pwm = 0;       // PWM signal (0-100 %) for HLT Electric Heating 3
 pwmtime  pwmhlt1;                 // Struct for HLT Electric Heater 1 Slow SSR signal
 pwmtime  pwmhlt2;                 // Struct for HLT Electric Heater 2 Slow SSR signal
+pwmtime  pwmhlt3;                 // Struct for HLT Electric Heater 3 Slow SSR signal
 uint8_t  bk_elec1_pwm = 0;        // PWM signal (0-100 %) for Boil-kettle Electric Heating 1
 uint8_t  bk_elec2_pwm = 0;        // PWM signal (0-100 %) for Boil-kettle Electric Heating 2
+uint8_t  bk_elec3_pwm = 0;        // PWM signal (0-100 %) for Boil-kettle Electric Heating 3
 pwmtime  pwmbk1;                  // Struct for Boil-kettle Electric Heater 1 Slow SSR signal
 pwmtime  pwmbk2;                  // Struct for Boil-kettle Electric Heater 2 Slow SSR signal
+pwmtime  pwmbk3;                  // Struct for Boil-kettle Electric Heater 3 Slow SSR signal
 uint8_t  elec_htrs = 0x00;        // Bit-define for every electrical phase of HLT and BK
 
 //-----------------------------------
@@ -305,7 +148,6 @@ uint8_t  delayed_start_std     = DEL_START_INIT; // std number, start in INIT st
 // Frontpanel LEDs are controlled by the MAX7219
 //------------------------------------------------
 uint8_t max7219dig2 = 0; // LEDs: Alive, Delayed-Start, Pump2, Pump1, S4, S3, S2, S1
-uint8_t max7219dig1 = 0; // LEDs: Valves V8, V7, V6, V5, V4, V3, V2, V1
 uint8_t max7219dig0 = 0; // LEDs: HLT gas, HLT E3, HLT E2, HLT E1, BK gas, BK E3, BK E2, BK E1
 
 /*------------------------------------------------------------------
@@ -358,10 +200,11 @@ void process_delayed_start(void)
             {
                 eep_write8(EEPARB_DEL_START_ENA,false); // reset enable in eeprom
                 delayed_start_std = DEL_START_INIT;
+                process_pwm_signal(PWM_HLT,0,ELEC_HTR1|ELEC_HTR2|ELEC_HTR3); // disable heaters
             } // if
             else 
             {	// For delayed start: only enable HLT electric heaters with fixed percentage	 
-                process_pwm_signal(PWM_HLT,DEL_START_ELEC_PWM,ELEC_HTR1|ELEC_HTR2);
+                process_pwm_signal(PWM_HLT,DEL_START_ELEC_PWM,ELEC_HTR1|ELEC_HTR2|ELEC_HTR3);
                 if (++timer2 >= DEL_START_MAX_BURN_TIME) 
                 {   // Safety feature, set burn-time to max. of 2 hours
                     delayed_start_enable = false; // prevent another burn
@@ -408,11 +251,11 @@ void init_pwm_time(pwmtime *p, uint8_t mask, bool on1st)
   Purpose  : Converts a PWM signal into a time-division signal of 100 * 50 msec.
              This is used to control the electric heating-elements.
              This routine should be called from pwm_task() every 50 msec.
-			 It uses the pwm values which are set by process_pwm_signal().
-  Variables: p: pointer to pwmtime struct. There are 2 structs, one for each
-                HLT electric heating-element.
-		  cntr: time-division counter, counts from 1 to 100 and back again.
-           pwm: this is PWM signal for the 
+	     It uses the pwm values which are set by process_pwm_signal().
+  Variables: p: pointer to pwmtime struct. There is a separate struct for each
+                electric heating-element.
+	  cntr: time-division counter, counts from 1 to 100 and back again.
+           pwm: PWM percentage.
   Returns  : -
   ---------------------------------------------------------------------------*/
 void pwm_2_time(pwmtime *p, uint8_t cntr, uint8_t pwm)
@@ -480,8 +323,12 @@ void pwm_task(void)
    
    pwm_2_time(&pwmbk1 ,cntr,bk_elec1_pwm);   // BK heating-element 1
    pwm_2_time(&pwmbk2 ,cntr,bk_elec2_pwm);   // BK heating-element 2
+   pwm_2_time(&pwmbk3 ,cntr,bk_elec3_pwm);   // BK heating-element 3
+   
    pwm_2_time(&pwmhlt1,cntr,hlt_elec1_pwm);  // HLT heating-element 1
    pwm_2_time(&pwmhlt2,cntr,hlt_elec2_pwm);  // HLT heating-element 2
+   pwm_2_time(&pwmhlt3,cntr,hlt_elec3_pwm);  // HLT heating-element 3
+   
    // If both heaters of the same phase are on, disable the HLT phase
    if ((elec_htrs & (HTR_BK1 | HTR_HLT1)) == (HTR_BK1 | HTR_HLT1)) elec_htrs &= ~HTR_HLT1;
    if ((elec_htrs & (HTR_BK2 | HTR_HLT2)) == (HTR_BK2 | HTR_HLT2)) elec_htrs &= ~HTR_HLT2;
@@ -493,7 +340,9 @@ void pwm_task(void)
    if (elec_htrs & pwmhlt2.mask)
         { HLT_SSR2b = true;  max7219dig0 |=  MAX7219D0H2; } // Enable  HLT heater 2
    else { HLT_SSR2b = false; max7219dig0 &= ~MAX7219D0H2; } // Disable HLT heater 2
-   // HLT electric heater 3 not implemented yet
+   if (elec_htrs & pwmhlt3.mask)
+        { HLT_SSR3b = true;  max7219dig0 |=  MAX7219D0H3; } // Enable  HLT heater 3
+   else { HLT_SSR3b = false; max7219dig0 &= ~MAX7219D0H3; } // Disable HLT heater 3
    
    if (elec_htrs & pwmbk1.mask)
         { BK_SSR1b = true;  max7219dig0 |=  MAX7219D0B1; } // Enable  BK heater 1
@@ -501,18 +350,13 @@ void pwm_task(void)
    if (elec_htrs & pwmbk2.mask)
         { BK_SSR2b = true;  max7219dig0 |=  MAX7219D0B2; } // Enable  BK heater 2
    else { BK_SSR2b = false; max7219dig0 &= ~MAX7219D0B2; } // Disable BK heater 2
-   // BK electric heater 3 not implemented yet
+   if (elec_htrs & pwmbk3.mask)
+        { BK_SSR3b = true;  max7219dig0 |=  MAX7219D0B3; } // Enable  BK heater 3
+   else { BK_SSR3b = false; max7219dig0 &= ~MAX7219D0B3; } // Disable BK heater 3
 
    // Update frontpanel LEDs
-   max7219_write(MAX7219_DIG2 | max7219dig2);
-   max7219_write(MAX7219_DIG1 | max7219dig1);
    max7219_write(MAX7219_DIG0 | max7219dig0);
-   max7219_write(MAX7219_DIG3 | 0xFF);
-   max7219_write(MAX7219_DIG4 | 0xFF);
-   max7219_write(MAX7219_DIG5 | 0xFF);
-   max7219_write(MAX7219_DIG6 | 0xFF);
-   max7219_write(MAX7219_DIG7 | 0xFF);
-
+   max7219_write(MAX7219_DIG2 | max7219dig2);
    if (++cntr > 100) cntr = 1; // reset time-division counter
 } // pwm_task()
 
@@ -892,13 +736,16 @@ int main(void)
     thlt_ow_87    = INIT_TEMP << 7;
     tmlt_ow_87    = INIT_TEMP << 7;
 
-    //---------------------------------------------
+    //----------------------------------------------------------------------------
     // Initialize Electric Heating Elements
-    //---------------------------------------------
+    // HLT1 and BK1 are on the same 230 V outlet, same for HLT2/BK2 and HLT3/BK3.
+    //----------------------------------------------------------------------------
     init_pwm_time(&pwmhlt1,HTR_HLT1,ON1ST);  // HLT Electric heating element 1
     init_pwm_time(&pwmhlt2,HTR_HLT2,OFF1ST); // HLT Electric heating element 2
+    init_pwm_time(&pwmhlt3,HTR_HLT3,ON1ST);  // HLT Electric heating element 3
     init_pwm_time(&pwmbk1 ,HTR_BK1 ,OFF1ST); // BK  Electric heating element 1
     init_pwm_time(&pwmbk2 ,HTR_BK2 ,ON1ST);  // BK  Electric heating element 2
+    init_pwm_time(&pwmbk3 ,HTR_BK3 ,OFF1ST); // BK  Electric heating element 3
 
     //---------------------------------------------
     // Initialize all tasks for the Brew Hardware
@@ -919,8 +766,8 @@ int main(void)
     {
         if (init_WIZ550IO_module())
         {   // 1 = ok, DHCP-server found
-                bz_rpt_max = 1; // Sound buzzer once to indicate ethernet connection ready
-                bz_on      = true;
+            bz_rpt_max = 1; // Sound buzzer once to indicate ethernet connection ready
+            bz_on      = true;
         } // if
     } // if
     sprintf(s,"CLK: 0x%X ",clk);
@@ -940,13 +787,12 @@ int main(void)
             case ERR_NUM: sprintf(s,"Num Err (%s)\n",rs232_inbuf);
                           uart_printf(s);  
                           break;
-            case ERR_I2C: break; // do not print anything 
             default     : break;
         } // switch
         if (ethernet_WIZ550i) // only true after an E1 command
         {
             udp_packet_size = udp_parsePacket();
-            if (udp_packet_size)
+            if ((udp_packet_size) && (udp_packet_size < UDP_TX_PACKET_MAX_SIZE))
             {
                 udp_read(udp_rcv_buf, UDP_TX_PACKET_MAX_SIZE);
                 udp_rcv_buf[udp_packet_size] = '\0';

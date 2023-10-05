@@ -267,7 +267,7 @@ int16_t lm92_read(enum I2C_CH ch, uint8_t *err)
 //--------------------------------------------------------------------------
 bool ds2482_reset(enum I2C_CH ch, uint8_t addr)
 {
-    uint8_t err, ret;
+    uint8_t err, ret = 0;
     
     // generate I2C start + output address to I2C bus
     err = (i2c_start_bb(ch, addr | I2C_WRITE) == I2C_NACK);
@@ -300,7 +300,7 @@ bool ds2482_reset(enum I2C_CH ch, uint8_t addr)
 //--------------------------------------------------------------------------
 bool ds2482_write_config(enum I2C_CH ch, uint8_t addr)
 {
-    uint8_t err, read_config;
+    uint8_t err, read_config = 0;
     
     // generate I2C start + output address to I2C bus
     err = (i2c_start_bb(ch, addr | I2C_WRITE) == I2C_NACK);

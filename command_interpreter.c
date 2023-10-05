@@ -28,7 +28,8 @@
 #include "uart.h"
 #include "pwm.h"
 #include "scheduler.h"
-      
+#include "max7219.h"
+
 extern uint8_t    remoteIP[4]; // remote IP address for the incoming packet whilst it's being processed
 extern uint8_t    ROM_NO[];    // One-wire hex-address
 extern uint8_t    crc8;
@@ -39,18 +40,21 @@ extern const char *ebrew_revision;     // ebrew CVS revision number
 
 extern uint8_t    hlt_elec1_pwm;       // PWM signal (0-100 %) for HLT Electric heating-element 1
 extern uint8_t    hlt_elec2_pwm;       // PWM signal (0-100 %) for HLT Electric heating-element 2
+extern uint8_t    hlt_elec3_pwm;       // PWM signal (0-100 %) for HLT Electric heating-element 3
 extern pwmtime    pwmhlt1;             // Struct for HLT Electrical Heater 1 Slow SSR signal
-extern pwmtime    pwmhlt2;             // Struct for HLT Electrical Heater 1 Slow SSR signal
+extern pwmtime    pwmhlt2;             // Struct for HLT Electrical Heater 2 Slow SSR signal
+extern pwmtime    pwmhlt3;             // Struct for HLT Electrical Heater 3 Slow SSR signal
 
 extern uint8_t    bk_elec1_pwm;        // PWM signal (0-100 %) for Boil-kettle Electric heating-element 1
 extern uint8_t    bk_elec2_pwm;        // PWM signal (0-100 %) for Boil-kettle Electric heating-element 2
+extern uint8_t    bk_elec3_pwm;        // PWM signal (0-100 %) for Boil-kettle Electric heating-element 3
 extern pwmtime    pwmbk1;              // Struct for Boil-kettle Electrical Heater 1 Slow SSR signal
-extern pwmtime    pwmbk2;              // Struct for Boil-kettle Electrical Heater 1 Slow SSR signal
+extern pwmtime    pwmbk2;              // Struct for Boil-kettle Electrical Heater 2 Slow SSR signal
+extern pwmtime    pwmbk3;              // Struct for Boil-kettle Electrical Heater 3 Slow SSR signal
 
 extern uint16_t   lm35_temp;           // LM35 Temperature in E-2 °C
 
 extern uint8_t    max7219dig2;         // Frontpanel LEDs MAX7219 DIG2
-extern uint8_t    max7219dig1;         // Frontpanel LEDs MAX7219 DIG1
 extern uint8_t    max7219dig0;         // Frontpanel LEDs MAX7219 DIG0
 
 //------------------------------------------------------
@@ -58,7 +62,7 @@ extern uint8_t    max7219dig0;         // Frontpanel LEDs MAX7219 DIG0
 // This is used for all temperature sensors
 //------------------------------------------------------
 extern int16_t    thlt_temp_87;        // THLT Temperature in °C * 128
-extern uint8_t    thlt_err;			   // 1 = error reading sensor
+extern uint8_t    thlt_err;	       // 1 = error reading sensor
 
 extern int16_t    tmlt_temp_87;        // TMLT Temperature in °C * 128
 extern uint8_t    tmlt_err;            // 1 = error reading sensor
@@ -94,6 +98,21 @@ char    rs232_inbuf[UART_BUFLEN];     // buffer for RS232 commands
 uint8_t rs232_ptr = 0;                // index in RS232 buffer
 
 /*-----------------------------------------------------------------------------
+  Purpose  : print-init function to print to either RS232/USB or Ethernet/Udp
+  Variables: 
+  rs232_udp: [RS232_USB, ETHERNET_UDP] Response via RS232/USB or Ethernet/Udp
+          s: the string to print
+ Returns  : -
+  ---------------------------------------------------------------------------*/
+void pri(bool rs232_udp)
+{
+   if (rs232_udp == ETHERNET_UDP)
+   {
+       udp_beginPacketIP(remoteIP, EBREW_PORT_NR); // send response back
+   } // if
+} // pri()
+
+/*-----------------------------------------------------------------------------
   Purpose  : helper function to print to either RS232/USB or Ethernet/Udp
   Variables: 
   rs232_udp: [RS232_USB, ETHERNET_UDP] Response via RS232/USB or Ethernet/Udp
@@ -106,6 +125,21 @@ void pr(bool rs232_udp, char *s)
          uart_printf(s);
     else udp_write((uint8_t *)s,strlen(s));
 } // pr()
+
+/*-----------------------------------------------------------------------------
+  Purpose  : print-end function to print to either RS232/USB or Ethernet/Udp
+  Variables: 
+  rs232_udp: [RS232_USB, ETHERNET_UDP] Response via RS232/USB or Ethernet/Udp
+          s: the string to print
+ Returns  : -
+  ---------------------------------------------------------------------------*/
+void pre(bool rs232_udp)
+{
+   if (rs232_udp == ETHERNET_UDP)
+   {
+       udp_endPacket(); // send response
+   } // if	
+} // pre()
 
 /*-----------------------------------------------------------------------------
   Purpose  : Scan all devices on the I2C bus on all channels of the PCA9544
@@ -142,7 +176,7 @@ void i2c_scan(enum I2C_CH ch, bool rs232_udp)
 /*-----------------------------------------------------------------------------
   Purpose  : Non-blocking RS232 command-handler via the USB port
   Variables: -
-  Returns  : [NO_ERR, ERR_CMD, ERR_NUM, ERR_I2C]
+  Returns  : [NO_ERR, ERR_CMD, ERR_NUM]
   ---------------------------------------------------------------------------*/
 uint8_t rs232_command_handler(void)
 {
@@ -176,7 +210,7 @@ uint8_t rs232_command_handler(void)
 /*-----------------------------------------------------------------------------
   Purpose  : Non-blocking command-handler via the Ethernet UDP port
   Variables: -
-  Returns  : [NO_ERR, ERR_CMD, ERR_NUM, ERR_I2C]
+  Returns  : [NO_ERR, ERR_CMD, ERR_NUM]
   ---------------------------------------------------------------------------*/
 uint8_t ethernet_command_handler(char *s)
 {
@@ -225,15 +259,16 @@ void find_OW_device(enum I2C_CH ch, uint8_t i2c_addr, bool rs232_udp)
 /*-----------------------------------------------------------------------------
   Purpose  : Process PWM signal for all system-modes. 
              Executed when a Bxxx or Hxxx command is received.
-             MODULATING GAS BURNER:     the 230V-signal energizes the gas-valve 
-					and the PWM signal is generated by a timer.
-	     ELECTRICAL HEATING:        The 230V signal for the SSR/Triac is switched 
-                                        with a 5 sec. period, the PWM signal is 
-					converted into a time-division signal of 
-					100 * 50 msec.
+             MODULATING GAS BURNER: the 230V-signal energizes the gas-valve 
+				    and the PWM signal is generated by a timer.
+	     ELECTRICAL HEATING:    The 230V signal for the SSR/Triac is switched 
+                                    with a 5 sec. period, the PWM signal is 
+				    converted into a time-division signal of 
+				    100 * 50 msec.
 Variables: 
-     pwm_ch: [PWM_BK,PWM_HLT]. Selects the PWM channel (Boil-kettle or HLT)
+     pwm_ch: [PWM_BK,PWM_HLT], selects the PWM channel (Boil-kettle or HLT)
     pwm_val: the PWM signal [0%..100%]
+     enable: [GAS_MODU,GAS_ONOFF,ELEC_HTR1,ELEC_HTR2,ELEC_HTR3]
   Returns  : -
   ---------------------------------------------------------------------------*/
 void process_pwm_signal(uint8_t pwm_ch, uint8_t pwm_val, uint8_t enable)
@@ -261,7 +296,7 @@ void process_pwm_signal(uint8_t pwm_ch, uint8_t pwm_val, uint8_t enable)
     // with T = 5 sec., to the heating-elements.
     //----------------------------------------------------------------
     if (pwm_ch == PWM_HLT)
-    {	// Currently, only the HLT has 2 electric heating-elements
+    {	// HLT: support for 3 electric heating-elements
         if (enable & ELEC_HTR1)
         {   // HLT Electric heating-element 1
             hlt_elec1_pwm = pwm_val; // set value for pwm_task() / pwm_2_time()
@@ -272,9 +307,14 @@ void process_pwm_signal(uint8_t pwm_ch, uint8_t pwm_val, uint8_t enable)
             hlt_elec2_pwm = pwm_val; // set value for pwm_task() / pwm_2_time()
         } // if
         else hlt_elec2_pwm = 0; // disable electric heater
+        if (enable & ELEC_HTR3)
+        {   // HLT Electric heating-element 3
+            hlt_elec3_pwm = pwm_val; // set value for pwm_task() / pwm_2_time()
+        } // if
+        else hlt_elec3_pwm = 0; // disable electric heater
     } // if
     else 
-    {   // Boil-kettle: support here for 2 electric heating elements
+    {   // Boil-kettle: support for 3 electric heating elements
         if (enable & ELEC_HTR1)
         {   // BK Electric heating-element 1
             bk_elec1_pwm = pwm_val; // set value for pwm_task() / pwm_2_time()
@@ -285,20 +325,24 @@ void process_pwm_signal(uint8_t pwm_ch, uint8_t pwm_val, uint8_t enable)
             bk_elec2_pwm = pwm_val; // set value for pwm_task() / pwm_2_time()
         } // if
         else bk_elec2_pwm = 0; // disable electric heater
+        if (enable & ELEC_HTR3)
+        {   // BK Electric heating-element 3
+            bk_elec3_pwm = pwm_val; // set value for pwm_task() / pwm_2_time()
+        } // if
+        else bk_elec3_pwm = 0; // disable electric heater
     } // else		    
 } // process_pwm_signal()
 
 /*-----------------------------------------------------------------------------
   Purpose  : Builds a string that can be returned via RS232/Ethernet.
-  Variables:
-		err: 1 = error when reading the temperature sensor
-       name: the string with the sensor name. Also used to return the result.
-	 val_87: the actual value of the temperature sensor in Q8.7 format
+  Variables: err   : 1 = error when reading the temperature sensor
+             name  : the string with the sensor name, also returns the result
+	     val_87: the actual value of the temperature sensor in Q8.7 format
   Returns  : -
   ---------------------------------------------------------------------------*/
 void process_temperatures(uint8_t err, char *name, int16_t val_87, uint8_t last)
 {
-   uint16_t temp, frac_16;
+   uint16_t temp, frac_16, v87;
    char     s2[20];
    
    if (err)
@@ -307,15 +351,22 @@ void process_temperatures(uint8_t err, char *name, int16_t val_87, uint8_t last)
        else      strcat(name,"-99.9,");
    }
    else
-   {
-       temp     = val_87 >> 7;     // The integer part of the sensor value
-       frac_16  = val_87 & 0x007f; // The fractional part of the sensor value
-       frac_16 *= 25;              // 100 / 128 = 25 / 32
-       frac_16 += 16;              // 0.5 for rounding
-       frac_16 >>= 5;              // SHR 5 = divide by 32
+   {   
+       if (val_87 < 0) 
+       {
+           v87 = -val_87; // make positive if negative value
+           strcat(name,"-");
+       } // if
+       else v87 =  val_87;
+       
+       temp     = v87 >> 7;           // The integer part of the sensor value
+       frac_16  = v87 & 0x007f;       // The fractional part of the sensor value
+       frac_16 *= 25;                 // 100 / 128 = 25 / 32
+       frac_16 += 16;                 // 0.5 for rounding
+       frac_16 >>= 5;                 // SHR 5 = divide by 32
        if (last) sprintf(s2,"%d.%02d\n",temp,frac_16);
        else      sprintf(s2,"%d.%02d," ,temp,frac_16);
-       strcat(name,s2);            // store result back in *name
+       strcat(name,s2);               // store result back in *name
    } // else
 } // process_temperatures()
 
@@ -394,7 +445,7 @@ void list_all_tasks(bool rs232_udp)
   Variables: 
           s: the string that contains the command from RS232 serial port 0
   rs232_udp: [RS232_USB, ETHERNET_UDP] Response via RS232/USB or Ethernet/Udp
-  Returns  : [NO_ERR, ERR_CMD, ERR_NUM, ERR_I2C] or ack. value for command
+  Returns  : [NO_ERR, ERR_CMD, ERR_NUM] or ack. value for command
   ---------------------------------------------------------------------------*/
 uint8_t execute_single_command(char *s, bool rs232_udp)
 {
@@ -406,10 +457,7 @@ uint8_t execute_single_command(char *s, bool rs232_udp)
    switch (s[0])
    {
 	   case 'a': // Read Temperatures and Flows
-               if (rs232_udp == ETHERNET_UDP) 
-               {
-                   udp_beginPacketIP(remoteIP, EBREW_PORT_NR); // send response back
-               } // if				 
+               pri(rs232_udp); // Init. print function
                switch (num)
                {
                case 0: // Temperature Processing, send all Temperatures to PC
@@ -437,15 +485,12 @@ uint8_t execute_single_command(char *s, bool rs232_udp)
                {		 
                    pr(rs232_udp,s2); // print to UART or ETH
                } // if
-               if (rs232_udp == ETHERNET_UDP)
-               {
-                   udp_endPacket(); // send response
-               } // if	
+               pri(rs232_udp); // End print function
                break;
                
 	   case 'b': // PWM signal for Boil-Kettle Modulating Gas-Burner
                temp = atoi(&s[3]); // convert PWM signal to number
-               if      (num > 15)   rval = ERR_CMD; // [GAS_MODU,GAS_ONOFF,ELEC_HTR1,ELEC_HTR2]
+               if      (num > 31)   rval = ERR_CMD; // [GAS_MODU,GAS_ONOFF,ELEC_HTR1,ELEC_HTR2,ELEC_HTR3]
                else if (temp > 100) rval = ERR_NUM; // error if pwm > 100
                else process_pwm_signal(PWM_BK,temp,num);
                break;
@@ -456,16 +501,10 @@ uint8_t execute_single_command(char *s, bool rs232_udp)
                {   // D0 (disable), D1 (set) or D2 (get) command
                    if (num > 1)
                    {   // D2 command: show remaining time until HLT-burner start
-                       if (rs232_udp == ETHERNET_UDP)
-                       {
-                           udp_beginPacketIP(remoteIP, EBREW_PORT_NR); // send response back
-                       } // if
+                       pri(rs232_udp); // Init. print function
                        sprintf(s2,"delayed-start:[%d]%d/%d min.\n",delayed_start_enable,delayed_start_timer1/30,delayed_start_time/30);
                        pr(rs232_udp,s2); // print to UART or ETH
-                       if (rs232_udp == ETHERNET_UDP)
-                       {
-                           udp_endPacket(); // send response
-                       } // if
+                       pre(rs232_udp);   // End print function
                    } // if
                    else if (num)
                    {   // D1 command: set delayed_start timer
@@ -475,7 +514,7 @@ uint8_t execute_single_command(char *s, bool rs232_udp)
                        } // if
                        else
                        {   // (s[2] == ' ') and (strlen(s) >= 4)
-                           temp = atoi(&s[2]) * 30;        // convert minutes to 2-second time counts
+                           temp = atoi(&s[2]) * 30; // convert minutes to 2-second time counts
                            if (temp > DEL_START_MAX_DELAY_TIME)
                            {    // limit delayed-start to 30 hours
                                rval = ERR_NUM; 
@@ -484,7 +523,7 @@ uint8_t execute_single_command(char *s, bool rs232_udp)
                            {
                                delayed_start_time = temp; // delayed-start time
                                eep_write16(EEPARB_DEL_START_TIME,delayed_start_time);
-                               eep_write16(EEPARB_DEL_START_TMR1,0);    // reset timer
+                               eep_write16(EEPARB_DEL_START_TMR1,0);   // reset timer
                                eep_write8(EEPARB_DEL_START_ENA,true);  // write enable to eeprom
                                delayed_start_enable = true; // and go...
                            } // else
@@ -504,27 +543,21 @@ uint8_t execute_single_command(char *s, bool rs232_udp)
                }
                else if (num ==2)
                {
-                   if (rs232_udp == ETHERNET_UDP)
-                   {
-                       udp_beginPacketIP(remoteIP, EBREW_PORT_NR); // send response back
-                   } // if
+                   pri(rs232_udp); // Init. print function
                    if (ethernet_WIZ550i)
                    {
                        sprintf(s2,"ETH mode (E1): %d.%d.%d.%d\n",local_ip[0],local_ip[1],local_ip[2],local_ip[3]);
                    } // if
                    else sprintf(s2,"USB mode (E0)\n");
-                   pr(rs232_udp,s2);  // print to UART or ETH
-                   if (rs232_udp == ETHERNET_UDP)
-                   {
-                       udp_endPacket(); // send response
-                   } // if
+                   pr(rs232_udp,s2); // print to UART or ETH
+                   pre(rs232_udp);   // End print function
                } // else if
                else rval = ERR_NUM;
                break;
                
 	   case 'h': // PWM signal for HLT Modulating Gas-Burner
                temp = atoi(&s[3]); // convert PWM signal to number
-               if      (num > 15)   rval = ERR_CMD; // [GAS_MODU,GAS_ONOFF,ELEC_HTR1,ELEC_HTR2]
+               if      (num > 31)   rval = ERR_CMD; // [GAS_MODU,GAS_ONOFF,ELEC_HTR1,ELEC_HTR2,ELEC_HTR3]
                else if (temp > 100) rval = ERR_NUM; // error if pwm > 100
                else process_pwm_signal(PWM_HLT,temp,num);
                break;
@@ -559,10 +592,7 @@ uint8_t execute_single_command(char *s, bool rs232_udp)
                break;
                
 	   case 's': // System commands
-               if (rs232_udp == ETHERNET_UDP)
-               {
-                   udp_beginPacketIP(remoteIP, EBREW_PORT_NR); // send response back
-               } // if
+               pri(rs232_udp); // Init. print function
                rval = 67 + num;
                switch (num)
                {
@@ -588,16 +618,13 @@ uint8_t execute_single_command(char *s, bool rs232_udp)
                    default: rval = ERR_NUM;
                    break;
                } // switch
-               if (rs232_udp == ETHERNET_UDP)
-               {
-                   udp_endPacket(); // send response
-               } // if
+               pre(rs232_udp);   // End print function
                break;
                
 	   case 'v': // Output Valve On-Off signals to hardware
                rval        = 78;
                PB_ODR      = num; // write valve bits to PORTB
-               max7219dig1 = num; // write valve bits to frontpanel LEDs
+               max7219_write(MAX7219_DIG1 | num); // write valve bits to frontpanel LEDs
                break;
                
 	   case 'x': // Sound Buzzer

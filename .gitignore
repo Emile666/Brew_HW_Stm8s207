@@ -34,6 +34,7 @@ $RECYCLE.BIN/
 *.ewd
 *.ewt
 *.log
+Debug/Obj/*.db
 Debug/Exe/*.out
 Debug/List/*.lst
 Debug/List/*.s

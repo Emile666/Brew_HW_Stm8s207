@@ -35,7 +35,6 @@
 #define NO_ERR        (0x00)
 #define ERR_CMD	      (0x01)
 #define ERR_NUM	      (0x02)
-#define ERR_I2C	      (0x03)
 #define ERR_NAME      (0x04)
 #define ERR_EMPTY     (0x05)
 #define ERR_MAX_TASKS (0x06)

@@ -47,9 +47,9 @@
 
 typedef struct _pwmtime
 {
-	uint8_t std;      // STD state number
-	uint8_t mask;     // port mask of MCP23017 Port B pin
-	bool    on1st;    // true = make 1 first, false = make 0 first
+    uint8_t std;      // STD state number
+    uint8_t mask;     // bit-define for elec_htrs variable
+    bool    on1st;    // true = make 1 first, false = make 0 first
 } pwmtime;
 
 //-------------------------------------------------------------------
@@ -70,8 +70,8 @@ typedef struct _pwmtime
 #define DEL_START_TMR    (1)
 #define DEL_START_BURN   (2)
 #define DEL_START_MAX_DELAY_TIME (54000) /* Max. time is 30 hours * 60 minutes * 30 * 2 seconds */
-#define DEL_START_MAX_BURN_TIME   (3600) /* Max. time is 120 minutes * 30 * 2 seconds */
-#define DEL_START_ELEC_PWM          (40) /* PWM signal for HLT electric heaters during delayed start */
+#define DEL_START_MAX_BURN_TIME   (3600) /* Max. time is 2 hours * 60 min. * 30 * 2 seconds */
+#define DEL_START_ELEC_PWM         (100) /* PWM signal for HLT electric heaters during delayed start */
 
 //-----------------------------
 // pwm_2_time() States
@@ -112,6 +112,10 @@ typedef struct _pwmtime
 #define MAX7219D2P2   (0x20) /* Pump 2 */
 #define MAX7219D2P1   (0x10) /* Pump 1 */
 /* Bits D3-D0 of DIG2 are spares */
+#define MAX7219D2S4   (0x08) /* Spare 4 */
+#define MAX7219D2S3   (0x04) /* Spare 3 */
+#define MAX7219D2S2   (0x02) /* Spare 2 */
+#define MAX7219D2S1   (0x01) /* Spare 1 */
 
 void    print_ebrew_revision(char *ver);
 uint8_t init_WIZ550IO_module(void);
