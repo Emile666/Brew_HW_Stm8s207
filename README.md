@@ -46,7 +46,8 @@ More hardware and firmware design details: see my website: http://www.vandelogt.
 ![frontpanel](img/brew_hw_stm8s207_v420.png)<br>
 *Top view of v4.20 PCB, as made by JLCPCB*
 
-Version v4.20 is the first PCB made with KiCad (v9.0.5), earlier PCBs were created with Eagle. An interactive BOM for v4.20 is available [here](img/ibom.html). Gerber files for v4.20 are found [here](img/Brew_HW_stm8s207_v420.zip).
+Version v4.20 is the first PCB made with KiCad (v9.0.5), earlier PCBs were created with Eagle. An interactive BOM for v4.20 is available [here](https://github.com/Emile666/Brew_HW_Stm8s207/blob/main/img/ibom.html).
+Gerber files for v4.20 are found [here](https://github.com/Emile666/Brew_HW_Stm8s207/blob/main/img/Brew_HW_stm8s207_v420.zip).
 
 # Software Development Environment
 Use with IAR-STM8.
