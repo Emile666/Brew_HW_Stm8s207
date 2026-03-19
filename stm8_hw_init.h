@@ -179,6 +179,28 @@
 #define ALIVE_LED_Rb (PG_ODR_ODR1)
 #define SPI_NRESETb  (PG_ODR_ODR0)
 
+//----------------------------------------------------------
+// Defines for the Frontpanel LEDs connected to the MAX7219
+//----------------------------------------------------------
+#define MAX7219D0HG   (0x80) /* HLT gasburner enable  */
+#define MAX7219D0H3   (0x40) /* HLT electric heater 3 */
+#define MAX7219D0H2   (0x20) /* HLT electric heater 2 */
+#define MAX7219D0H1   (0x10) /* HLT electric heater 1 */
+#define MAX7219D0BG   (0x08) /* BK  gasburner enable  */
+#define MAX7219D0B3   (0x04) /* BK  electric heater 3 */
+#define MAX7219D0B2   (0x02) /* BK  electric heater 2 */
+#define MAX7219D0B1   (0x01) /* BK  electric heater 1 */
+/* DIG1 contains the Valve LEDs */
+#define MAX7219D2LV   (0x80) /* Alive LED */
+#define MAX7219D2DS   (0x40) /* Delayed-Start LED */
+#define MAX7219D2P2   (0x20) /* Pump 2 */
+#define MAX7219D2P1   (0x10) /* Pump 1 */
+/* Bits D3-D0 of DIG2 are Flow-sensor LEDs */
+#define MAX7219D2F4   (0x08) /* Spare 4 */
+#define MAX7219D2F3   (0x04) /* Spare 3 */
+#define MAX7219D2F2   (0x02) /* Spare 2 */
+#define MAX7219D2F1   (0x01) /* Spare 1 */
+
 //-----------------------------
 // Buzer STD modes
 //-----------------------------

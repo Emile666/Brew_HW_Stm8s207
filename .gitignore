@@ -70,3 +70,5 @@ Settings/*.dnx
 Network Trash Folder
 Temporary Items
 .apdisk
+*.bak
+img/DS2482_AN3684.pdf

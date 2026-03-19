@@ -502,7 +502,7 @@ uint8_t execute_single_command(char *s, bool rs232_udp)
                    if (num > 1)
                    {   // D2 command: show remaining time until HLT-burner start
                        pri(rs232_udp); // Init. print function
-                       sprintf(s2,"delayed-start:[%d]%d/%d min.\n",delayed_start_enable,delayed_start_timer1/30,delayed_start_time/30);
+                       sprintf(s2,"delayed-start:[%d] %d/%d min.\n",delayed_start_enable,delayed_start_timer1/30,delayed_start_time/30);
                        pr(rs232_udp,s2); // print to UART or ETH
                        pre(rs232_udp);   // End print function
                    } // if

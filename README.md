@@ -1,5 +1,5 @@
 # Home-Brewery Automation
-This respository contains the firmware for the STM8S207 microcontroller on the Brew hardware PCB. Its purpose is to automate a 3-vessel HERMS Brew-system. Such a brew-system contains a Hot Liquid Tun (HLT), a Mash-Lauter Tun (MLT) and a boil-kettle (BK).
+This repository contains the firmware for the STM8S207 microcontroller on the Brew hardware PCB. Its purpose is to automate a 3-vessel HERMS Brew-system. Such a brew-system contains a Hot Liquid Tun (HLT), a Mash-Lauter Tun (MLT) and a boil-kettle (BK).
 There are also two pumps, eight valves, four flow-sensors and several temperature-sensors present. For heating there are both gas-burners and 3-phase electrical heating-elements present.
 
 # Features
@@ -43,8 +43,10 @@ Integrated Circuits (IC) used:
 More hardware and firmware design details: see my website: http://www.vandelogt.nl/uk_hardware.php. Note that the description there is still for the old hardware version, based around an Arduino Nano.
 
 # Printed Circuit Board (PCB)
-![frontpanel](img/brew_hw_stm8s207_v401.png)<br>
-*Top view of v4.01 prototype PCB, as made by JLCPCB*
+![frontpanel](img/brew_hw_stm8s207_v420.png)<br>
+*Top view of v4.20 PCB, as made by JLCPCB*
+
+Version v4.20 is the first PCB made with KiCad (v9.0.5), earlier PCBs were created with Eagle. An interactive BOM for v4.20 is available [here](img/ibom.html). Gerber files for v4.20 are found [here](img/Brew_HW_stm8s207_v420.zip).
 
 # Software Development Environment
 Use with IAR-STM8.

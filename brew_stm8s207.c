@@ -42,7 +42,7 @@ extern char rs232_inbuf[];
 // Global variables
 uint8_t      local_ip[4]      = {0,0,0,0}; // local IP address, gets a value from init_WIZ550IO_module() -> dhcp_begin()
 uint16_t     local_port;                   // local port number read back from wiz550i module
-const char  *ebrew_revision   = "$Revision: 2.04 $"; // ebrew revision number
+const char  *ebrew_revision   = "$Revision: 2.05 $"; // ebrew revision number
 bool         ethernet_WIZ550i = true;		     // true = start WIZ550i at power-up
 
 // The following variables are defined in Udp.c
@@ -54,6 +54,7 @@ unsigned char   udp_rcv_buf[UDP_TX_PACKET_MAX_SIZE]; // buffer to hold incoming 
 // The following variables are needed for the buzzer
 extern bool     bz_on;      // true = buzzer is enabled
 extern uint8_t  bz_rpt_max; // number of beeps to make
+extern uint8_t  bz_freq;    // Buzzer frequency
 
 //-----------------------------------
 // Electric Heating variables
@@ -131,10 +132,14 @@ int16_t  tboil_old_87;              // Previous value of tboil_temp_87
 int16_t  tboil_temp_87;             // TBOIL Temperature in °C * 128
 uint8_t  tboil_err = 0;             // 1 = Read error from DS18B20
 
-uint32_t flow_hlt_mlt  = 0UL;
-uint32_t flow_mlt_boil = 0UL;
-uint32_t flow_cfc_out  = 0UL; // Count from flow-sensor at output of CFC
-uint32_t flow4         = 0UL; // Count from FLOW4 (future use)
+uint32_t flow_hlt_mlt  = 0UL; // Flow 1
+uint32_t flow_mlt_boil = 0UL; // Flow 2
+uint32_t flow_cfc_out  = 0UL; // Flow 3 Count from flow-sensor at output of CFC
+uint32_t flow4         = 0UL; // Flow 4 Count from HLT-CFC to MLT-top return
+uint32_t flow_old1     = 0UL;
+uint32_t flow_old2     = 0UL;
+uint32_t flow_old3     = 0UL;
+uint32_t flow_old4     = 0UL;
 
 //------------------------------------------------
 // Delayed-start variables
@@ -147,7 +152,7 @@ uint8_t  delayed_start_std     = DEL_START_INIT; // std number, start in INIT st
 //------------------------------------------------
 // Frontpanel LEDs are controlled by the MAX7219
 //------------------------------------------------
-uint8_t max7219dig2 = 0; // LEDs: Alive, Delayed-Start, Pump2, Pump1, S4, S3, S2, S1
+uint8_t max7219dig2 = 0; // LEDs: Alive, Delayed-Start, Pump2, Pump1, F4, F3, F2, F1
 uint8_t max7219dig0 = 0; // LEDs: HLT gas, HLT E3, HLT E2, HLT E1, BK gas, BK E3, BK E2, BK E1
 
 /*------------------------------------------------------------------
@@ -248,9 +253,9 @@ void init_pwm_time(pwmtime *p, uint8_t mask, bool on1st)
 } // init_pwm_time()
 
 /*-----------------------------------------------------------------------------
-  Purpose  : Converts a PWM signal into a time-division signal of 100 * 50 msec.
+  Purpose  : Converts a PWM signal into a time-division signal of 100 * 100 msec.
              This is used to control the electric heating-elements.
-             This routine should be called from pwm_task() every 50 msec.
+             This routine should be called from pwm_task() every 100 msec.
 	     It uses the pwm values which are set by process_pwm_signal().
   Variables: p: pointer to pwmtime struct. There is a separate struct for each
                 electric heating-element.
@@ -302,8 +307,8 @@ void pwm_2_time(pwmtime *p, uint8_t cntr, uint8_t pwm)
 
 /*-----------------------------------------------------------------------------
   Purpose  : This task converts a PWM signal into a time-division signal of 
-             100 * 50 msec. This routine should be called from the timer-interrupt 
-	     every 50 msec. It uses the hlt_elecx_pwm and bk_elecx_pwm signals 
+             100 * 100 msec. This routine should be called from the scheduler 
+	     every 100 msec. It uses the hlt_elecx_pwm and bk_elecx_pwm signals 
 	     which were set by the process_pwm_signal(). This variable will only 
 	     get a non-zero number when the corresponding electrical 
 	     heating-element is enabled.
@@ -355,8 +360,33 @@ void pwm_task(void)
    else { BK_SSR3b = false; max7219dig0 &= ~MAX7219D0B3; } // Disable BK heater 3
 
    // Update frontpanel LEDs
+   if (flow_hlt_mlt != flow_old1)
+   {
+        max7219dig2 ^=  MAX7219D2F1; // toggle LED
+        flow_old1 = flow_hlt_mlt;
+   } // if
+   else max7219dig2 &= ~MAX7219D2F1; // LED off
+   if (flow_mlt_boil != flow_old2)
+   {    
+        max7219dig2 ^=  MAX7219D2F2; // toggle LED
+        flow_old2 = flow_mlt_boil;
+   } // if
+   else max7219dig2 &= ~MAX7219D2F2; // LED off
+   if (flow_cfc_out != flow_old3)
+   {
+        max7219dig2 ^=  MAX7219D2F3; // toggle LED
+        flow_old3 = flow_cfc_out;
+   } // if
+   else max7219dig2 &= ~MAX7219D2F3; // LED off
+   if (flow4 != flow_old4)
+   {
+        max7219dig2 ^=  MAX7219D2F4; // toggle LED
+        flow_old4 = flow4;
+   } // if
+   else max7219dig2 &= ~MAX7219D2F4; // LED off
    max7219_write(MAX7219_DIG0 | max7219dig0);
    max7219_write(MAX7219_DIG2 | max7219dig2);
+   
    if (++cntr > 100) cntr = 1; // reset time-division counter
 } // pwm_task()
 
@@ -750,7 +780,7 @@ int main(void)
     //---------------------------------------------
     // Initialize all tasks for the Brew Hardware
     //---------------------------------------------
-    add_task(pwm_task  ,"pwm_task"  , 10,   50); // Electrical Heating Time-Division every 50 msec.
+    add_task(pwm_task  ,"pwm_task"  , 10,  100); // Electrical Heating Time-Division every 100 msec.
     add_task(owh_task  ,"owh_task"  ,120, 1000); // Process Temperature from DS18B20 HLT sensor
     add_task(owm_task  ,"owm_task"  ,220, 1000); // Process Temperature from DS18B20 MLT sensor
     add_task(owb_task  ,"owb_task"  ,320, 1000); // Process Temperature from DS18B20 Boil-kettle sensor

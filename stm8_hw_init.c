@@ -25,7 +25,7 @@ extern uint32_t t2_millis;    // needed for delay_msec()
 extern uint32_t flow_hlt_mlt;
 extern uint32_t flow_mlt_boil;
 extern uint32_t flow_cfc_out; // Count from flow-sensor at output of CFC
-extern uint32_t flow4;        // Count from FLOW4 (future use)
+extern uint32_t flow4;        // Count from HLT-CFC to MLT-top return
 
 //------------------------------------------------
 // Buzzer variables
@@ -36,7 +36,7 @@ uint8_t  bz_std = BZ_OFF;  // std number
 uint8_t  bz_rpt;           // buzzer repeat counter
 uint8_t  bz_rpt_max;       // number of beeps to make
 uint16_t bz_tmr;           // buzzer msec counter
-uint8_t  bz_freq = FREQ_1KHZ;
+uint8_t  bz_freq = FREQ_4KHZ;
 
 /*------------------------------------------------------------------
   Purpose  : This is the buzzer routine which runs every msec. 
@@ -247,7 +247,7 @@ void setup_gpio_ports(void)
     PA_DDR     &= ~FLOW1; // Set as inputs
     PA_CR1     |=  FLOW1; // Enable pull-up
     PA_CR2     |=  FLOW1; // Enable interrupt 
-    EXTI_CR1   |=  0x02;  // PORTA external interrupt to falling edge only
+    EXTI_CR1_PAIS = 0x02; // PORTA external interrupt to falling edge only
     
     // PORTB: VALVE8..VALVE1
     PB_DDR     |=   VALVES; // Set as output
@@ -276,7 +276,7 @@ void setup_gpio_ports(void)
     PE_DDR     &= ~(FLOW2 | FLOW3 | FLOW4);     // Set as inputs
     PE_CR1     &= ~(FLOW2 | FLOW3 | FLOW4);     // Enable pull-up
     PE_CR2     |=  (FLOW2 | FLOW3 | FLOW4);     // Enable Interrupt 
-    EXTI_CR2   |=  0x02;                        // PORTE external interrupt to falling edge only
+    EXTI_CR2_PEIS = 0x02;                       // PORTE external interrupt to falling edge only
     
     // LM35 (PF0) is controlled by ADC device, PF7-PF5 are free
     // SSR-outputs control 3-phase electric heating elements
