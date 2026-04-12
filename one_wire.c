@@ -26,7 +26,8 @@
 #include "delay.h"         /* for delay_msec() */
 
 // Search state
-uint8_t ROM_NO[8];
+uint8_t ROM_ID[8][8];      // Array of max. 8 ROM-IDs    
+uint8_t ROM_NO[8];         // scratchpad array
 int     LastDiscrepancy;
 int     LastFamilyDiscrepancy;
 int     LastDeviceFlag;
@@ -49,31 +50,31 @@ int8_t  short_detected;
 // Returns: true(1):  presence pulse(s) detected, device(s) reset
 //          false(0): no presence pulses detected
 //--------------------------------------------------------------------------
-uint8_t OW_reset(enum I2C_CH ch, uint8_t addr)
+uint8_t OW_reset(uint8_t addr)
 {
     uint8_t err, status;
     uint8_t poll_count = 0;
     
     // generate I2C start + output address to I2C bus
-    err = (i2c_start_bb(ch, addr | I2C_WRITE) == I2C_NACK);
+    err = (i2c_start_bb(I2C_CH0, addr | I2C_WRITE) == I2C_NACK);
     if (!err)
     {
-        err  = (i2c_write_bb(ch, CMD_1WRS) == I2C_NACK); // write register address
-        i2c_rep_start_bb(ch, addr | I2C_READ);
+        err  = (i2c_write_bb(I2C_CH0, CMD_1WRS) == I2C_NACK); // write register address
+        i2c_rep_start_bb(I2C_CH0, addr | I2C_READ);
         // loop checking 1WB bit for completion of 1-Wire operation 
         // abort if poll limit reached
-        status = i2c_read_bb(ch, I2C_ACK); // Read byte
+        status = i2c_read_bb(I2C_CH0, I2C_ACK); // Read byte
         do
         {
-            if (status & STATUS_1WB) status = i2c_read_bb(ch, I2C_ACK);
+            if (status & STATUS_1WB) status = i2c_read_bb(I2C_CH0, I2C_ACK);
         }
         while ((status & STATUS_1WB) && (poll_count++ < DS2482_OW_POLL_LIMIT));
-        status = i2c_read_bb(ch, I2C_NACK);
-        i2c_stop_bb(ch);
+        status = i2c_read_bb(I2C_CH0, I2C_NACK);
+        i2c_stop_bb(I2C_CH0);
         // check for failure due to poll limit reached
         if (poll_count >= DS2482_OW_POLL_LIMIT)
         {
-            ds2482_reset(ch, addr); // handle error
+            ds2482_reset(addr); // handle error
             return false;
         } // if
         if (status & STATUS_SD) // check for short condition
@@ -84,7 +85,11 @@ uint8_t OW_reset(enum I2C_CH ch, uint8_t addr)
             return true;
         else return false;
     } // if
-    else return false;   
+    else 
+    {
+        i2c_stop_bb(I2C_CH0);
+        return false;
+    } // else
 } // OW_reset()
 
 //--------------------------------------------------------------------------
@@ -98,7 +103,7 @@ uint8_t OW_reset(enum I2C_CH ch, uint8_t addr)
 // Returns: 0:   0 bit read from sendbit
 //          1:   1 bit read from sendbit
 //--------------------------------------------------------------------------
-uint8_t OW_touch_bit(enum I2C_CH ch, uint8_t sendbit, uint8_t addr)
+uint8_t OW_touch_bit(uint8_t sendbit, uint8_t addr)
 {
     uint8_t err, status;
     uint8_t poll_count = 0;
@@ -110,26 +115,26 @@ uint8_t OW_touch_bit(enum I2C_CH ch, uint8_t sendbit, uint8_t addr)
     //  [] indicates from slave
     //  BB indicates byte containing bit value in msbit
     // generate I2C start + output address to I2C bus
-    err = (i2c_start_bb(ch, addr | I2C_WRITE) == I2C_NACK);
+    err = (i2c_start_bb(I2C_CH0, addr | I2C_WRITE) == I2C_NACK);
     if (!err)
     {
-        err  = (i2c_write_bb(ch, CMD_1WSB) == I2C_NACK); // write register address
-        err  = (i2c_write_bb(ch, sendbit ? 0x80 : 0x00) == I2C_NACK); // write register address
-        i2c_rep_start_bb(ch, addr | I2C_READ);
+        err  = (i2c_write_bb(I2C_CH0, CMD_1WSB) == I2C_NACK); // write register address
+        err  = (i2c_write_bb(I2C_CH0, sendbit ? 0x80 : 0x00) == I2C_NACK); // write register address
+        i2c_rep_start_bb(I2C_CH0, addr | I2C_READ);
         // loop checking 1WB bit for completion of 1-Wire operation 
         // abort if poll limit reached
-        status = i2c_read_bb(ch, I2C_ACK); // Read byte
+        status = i2c_read_bb(I2C_CH0, I2C_ACK); // Read byte
         do
         {
-            if (status & STATUS_1WB) status = i2c_read_bb(ch, I2C_ACK);
+            if (status & STATUS_1WB) status = i2c_read_bb(I2C_CH0, I2C_ACK);
         }
         while ((status & STATUS_1WB) && (poll_count++ < DS2482_OW_POLL_LIMIT));
-        status = i2c_read_bb(ch, I2C_NACK);
-        i2c_stop_bb(ch);
+        status = i2c_read_bb(I2C_CH0, I2C_NACK);
+        i2c_stop_bb(I2C_CH0);
         // check for failure due to poll limit reached
         if (poll_count >= DS2482_OW_POLL_LIMIT)
         {
-            ds2482_reset(ch, addr); // handle error
+            ds2482_reset(addr); // handle error
             return false;
         } // if
         // return bit state
@@ -146,9 +151,9 @@ uint8_t OW_touch_bit(enum I2C_CH ch, uint8_t sendbit, uint8_t addr)
 //
 // 'sendbit' - 1 bit to send (least significant byte)
 //--------------------------------------------------------------------------
-void OW_write_bit(enum I2C_CH ch, uint8_t sendbit, uint8_t addr)
+void OW_write_bit(uint8_t sendbit, uint8_t addr)
 {
-   OW_touch_bit(ch, sendbit, addr);
+   OW_touch_bit(sendbit, addr);
 } // OW_write_bit()
 
 //--------------------------------------------------------------------------
@@ -156,9 +161,9 @@ void OW_write_bit(enum I2C_CH ch, uint8_t sendbit, uint8_t addr)
 //
 // Returns:  1 bit read from 1-Wire Net
 //--------------------------------------------------------------------------
-uint8_t OW_read_bit(enum I2C_CH ch, uint8_t addr)
+uint8_t OW_read_bit(uint8_t addr)
 {
-   return OW_touch_bit(ch, 0x01, addr);
+   return OW_touch_bit(0x01, addr);
 } // OW_read_bit()
 
 //--------------------------------------------------------------------------
@@ -171,7 +176,7 @@ uint8_t OW_read_bit(enum I2C_CH ch, uint8_t addr)
 // Returns:  true: byte is written
 //           false: error
 //--------------------------------------------------------------------------
-uint8_t OW_write_byte(enum I2C_CH ch, uint8_t sendbyte, uint8_t addr)
+uint8_t OW_write_byte(uint8_t sendbyte, uint8_t addr)
 {
     uint8_t err, status;
     uint8_t poll_count = 0;
@@ -183,26 +188,26 @@ uint8_t OW_write_byte(enum I2C_CH ch, uint8_t sendbyte, uint8_t addr)
     //  [] indicates from slave
     //  DD data to write
     // generate I2C start + output address to I2C bus
-    err = (i2c_start_bb(ch, addr | I2C_WRITE) == I2C_NACK);
+    err = (i2c_start_bb(I2C_CH0, addr | I2C_WRITE) == I2C_NACK);
     if (!err)
     {
-        err  = (i2c_write_bb(ch, CMD_1WWB) == I2C_NACK); // write register address
-        err  = (i2c_write_bb(ch, sendbyte) == I2C_NACK); // write register address
-        i2c_rep_start_bb(ch, addr | I2C_READ);
+        err  = (i2c_write_bb(I2C_CH0, CMD_1WWB) == I2C_NACK); // write register address
+        err  = (i2c_write_bb(I2C_CH0, sendbyte) == I2C_NACK); // write register address
+        i2c_rep_start_bb(I2C_CH0, addr | I2C_READ);
         // loop checking 1WB bit for completion of 1-Wire operation 
         // abort if poll limit reached
-        status = i2c_read_bb(ch, I2C_ACK); // Read byte
+        status = i2c_read_bb(I2C_CH0, I2C_ACK); // Read byte
         do
         {
-            if (status & STATUS_1WB) status = i2c_read_bb(ch, I2C_ACK);
+            if (status & STATUS_1WB) status = i2c_read_bb(I2C_CH0, I2C_ACK);
         }
         while ((status & STATUS_1WB) && (poll_count++ < DS2482_OW_POLL_LIMIT));
-        status = i2c_read_bb(ch, I2C_NACK);
-        i2c_stop_bb(ch);
+        status = i2c_read_bb(I2C_CH0, I2C_NACK);
+        i2c_stop_bb(I2C_CH0);
         // check for failure due to poll limit reached
         if (poll_count >= DS2482_OW_POLL_LIMIT)
         {
-            ds2482_reset(ch, addr); // handle error
+            ds2482_reset(addr); // handle error
             return false;
         } // if
         return true;
@@ -216,7 +221,7 @@ uint8_t OW_write_byte(enum I2C_CH ch, uint8_t sendbyte, uint8_t addr)
 //
 // Returns:  8 bits read from 1-Wire Net
 //--------------------------------------------------------------------------
-uint8_t OW_read_byte(enum I2C_CH ch, uint8_t addr)
+uint8_t OW_read_byte(uint8_t addr)
 {
     uint8_t err, data, status;
     int poll_count = 0;
@@ -230,32 +235,32 @@ uint8_t OW_read_byte(enum I2C_CH ch, uint8_t addr)
     //  [] indicates from slave
     //  DD data read
     // generate I2C start + output address to I2C bus
-    err = (i2c_start_bb(ch, addr | I2C_WRITE) == I2C_NACK);
+    err = (i2c_start_bb(I2C_CH0, addr | I2C_WRITE) == I2C_NACK);
     if (!err)
     {
-        err  = (i2c_write_bb(ch, CMD_1WRB) == I2C_NACK); // write register address
-        i2c_rep_start_bb(ch, addr | I2C_READ);
+        err  = (i2c_write_bb(I2C_CH0, CMD_1WRB) == I2C_NACK); // write register address
+        i2c_rep_start_bb(I2C_CH0, addr | I2C_READ);
         // loop checking 1WB bit for completion of 1-Wire operation 
         // abort if poll limit reached
-        status = i2c_read_bb(ch, I2C_ACK); // Read byte
+        status = i2c_read_bb(I2C_CH0, I2C_ACK); // Read byte
         do
         {
-            if (status & STATUS_1WB) status = i2c_read_bb(ch, I2C_ACK);
+            if (status & STATUS_1WB) status = i2c_read_bb(I2C_CH0, I2C_ACK);
         }
         while ((status & STATUS_1WB) && (poll_count++ < DS2482_OW_POLL_LIMIT));
-        status = i2c_read_bb(ch, I2C_NACK);
+        status = i2c_read_bb(I2C_CH0, I2C_NACK);
         // check for failure due to poll limit reached
         if (poll_count >= DS2482_OW_POLL_LIMIT)
         {
-            ds2482_reset(ch, addr); // handle error
+            ds2482_reset(addr); // handle error
             return false;
         } // if
-        i2c_rep_start_bb(ch, addr | I2C_WRITE);
-        err  = (i2c_write_bb(ch, CMD_SRP) == I2C_NACK); // write register address
-        err  = (i2c_write_bb(ch, 0xE1)    == I2C_NACK); // write register address
-        i2c_rep_start_bb(ch, addr | I2C_READ);
-        data = i2c_read_bb(ch, I2C_NACK);	
-        i2c_stop_bb(ch);
+        i2c_rep_start_bb(I2C_CH0, addr | I2C_WRITE);
+        err  = (i2c_write_bb(I2C_CH0, CMD_SRP) == I2C_NACK); // write register address
+        err  = (i2c_write_bb(I2C_CH0, 0xE1)    == I2C_NACK); // write register address
+        i2c_rep_start_bb(I2C_CH0, addr | I2C_READ);
+        data = i2c_read_bb(I2C_CH0, I2C_NACK);	
+        i2c_stop_bb(I2C_CH0);
         return data;
     } // if
     else return false;
@@ -271,13 +276,13 @@ uint8_t OW_read_byte(enum I2C_CH ch, uint8_t addr)
 //
 // Returns:  8 bits read from sendbyte
 //--------------------------------------------------------------------------
-uint8_t OW_touch_byte(enum I2C_CH ch, uint8_t sendbyte, uint8_t addr)
+uint8_t OW_touch_byte(uint8_t sendbyte, uint8_t addr)
 {
    if (sendbyte == 0xFF)
-      return OW_read_byte(ch, addr);
+      return OW_read_byte(addr);
    else
    {  
-      OW_write_byte(ch, sendbyte, addr);
+      OW_write_byte(sendbyte, addr);
       return sendbyte;
    } // else
 } // OW_touch_byte()
@@ -291,12 +296,10 @@ uint8_t OW_touch_byte(enum I2C_CH ch, uint8_t sendbyte, uint8_t addr)
 //              to the 1-Wire Net
 // 'tran_len' - length in bytes to transfer
 //--------------------------------------------------------------------------
-void OW_block(enum I2C_CH ch, uint8_t *tran_buf, uint8_t tran_len, uint8_t addr)
+void OW_block(uint8_t *tran_buf, uint8_t tran_len, uint8_t addr)
 {
-   uint8_t i;
-
-   for (i = 0; i < tran_len; i++)
-      tran_buf[i] = OW_touch_byte(ch, tran_buf[i], addr);
+   for (uint8_t i = 0; i < tran_len; i++)
+      tran_buf[i] = OW_touch_byte(tran_buf[i], addr);
 } // OW_block()
 
 //--------------------------------------------------------------------------
@@ -304,13 +307,13 @@ void OW_block(enum I2C_CH ch, uint8_t *tran_buf, uint8_t tran_len, uint8_t addr)
 // Return true  : device found, ROM number in ROM_NO buffer
 //        false : no device present
 //--------------------------------------------------------------------------
-uint8_t OW_first(enum I2C_CH ch, uint8_t addr)
+uint8_t OW_first(uint8_t addr)
 {
    // reset the search state
    LastDiscrepancy       = 0;
    LastDeviceFlag        = false;
    LastFamilyDiscrepancy = 0;
-   return OW_search(ch, addr);
+   return OW_search(addr);
 } // OW_first()
 
 //--------------------------------------------------------------------------
@@ -318,10 +321,10 @@ uint8_t OW_first(enum I2C_CH ch, uint8_t addr)
 // Return true  : device found, ROM number in ROM_NO buffer
 //        false : device not found, end of search
 //--------------------------------------------------------------------------
-uint8_t OW_next(enum I2C_CH ch, uint8_t addr)
+uint8_t OW_next(uint8_t addr)
 {
    // leave the search state alone
-   return OW_search(ch, addr);
+   return OW_search(addr);
 } // OW_next()
 
 //--------------------------------------------------------------------------
@@ -329,7 +332,7 @@ uint8_t OW_next(enum I2C_CH ch, uint8_t addr)
 // Return true  : device verified present
 //        false : device not present
 //--------------------------------------------------------------------------
-uint8_t OW_verify(enum I2C_CH ch, uint8_t addr)
+uint8_t OW_verify(uint8_t addr)
 {
     uint8_t rom_backup[8];
     uint8_t i,rslt,ld_backup,ldf_backup,lfd_backup;
@@ -345,7 +348,7 @@ uint8_t OW_verify(enum I2C_CH ch, uint8_t addr)
     LastDiscrepancy = 64;
     LastDeviceFlag  = false;
     
-    if (OW_search(ch, addr))
+    if (OW_search(addr))
     {
         // check if same device found
         rslt = true;
@@ -377,11 +380,9 @@ uint8_t OW_verify(enum I2C_CH ch, uint8_t addr)
 //--------------------------------------------------------------------------
 void OW_target_setup(uint8_t family_code)
 {
-   uint8_t i;
-
    // set the search state to find SearchFamily type devices
    ROM_NO[0] = family_code;
-   for (i = 1; i < 8; i++)
+   for (uint8_t i = 1; i < 8; i++)
       ROM_NO[i] = 0;
    LastDiscrepancy       = 64;
    LastFamilyDiscrepancy = 0;
@@ -421,7 +422,7 @@ void OW_family_skip_setup(void)
 //                       last search was the last device or there
 //                       are no devices on the 1-Wire Net.
 //--------------------------------------------------------------------------
-uint8_t OW_search(enum I2C_CH ch, uint8_t addr)
+uint8_t OW_search(uint8_t addr)
 {
     uint8_t id_bit_number;
     uint8_t last_zero, rom_byte_number, search_result;
@@ -440,7 +441,7 @@ uint8_t OW_search(enum I2C_CH ch, uint8_t addr)
     if (!LastDeviceFlag)
     {       
         // 1-Wire reset
-        if (!OW_reset(ch, addr))
+        if (!OW_reset(addr))
         {
             // reset the search
             LastDiscrepancy = 0;
@@ -449,7 +450,7 @@ uint8_t OW_search(enum I2C_CH ch, uint8_t addr)
             return false;
         } // if
         
-        OW_write_byte(ch, 0xF0, addr);  // issue the search command 
+        OW_write_byte(OW_SEARCH_ROM_CMD, addr); // issue the search command 
         
         // loop to do the search
         do
@@ -470,7 +471,7 @@ uint8_t OW_search(enum I2C_CH ch, uint8_t addr)
             } // else
             
             // Perform a triple operation on the DS2482 which will perform 2 read bits and 1 write bit
-            status = ds2482_search_triplet(ch, search_direction, addr);
+            status = ds2482_search_triplet(search_direction, addr);
             
             // check bit results in status byte
             id_bit     = ((status & STATUS_SBR) == STATUS_SBR);
@@ -494,7 +495,7 @@ uint8_t OW_search(enum I2C_CH ch, uint8_t addr)
                 // set or clear the bit in the ROM byte rom_byte_number
                 // with mask rom_byte_mask
                 if (search_direction == 1)
-                    ROM_NO[rom_byte_number] |= rom_byte_mask;
+                     ROM_NO[rom_byte_number] |= rom_byte_mask;
                 else ROM_NO[rom_byte_number] &= (uint8_t)~rom_byte_mask;
                 
                 // increment the byte counter id_bit_number
@@ -563,19 +564,19 @@ uint8_t calc_crc8(uint8_t data)
 // Start a temperature conversion. At the highest resolution 
 // (12-bit, default at power-up), it takes approx. 750 msec.
 //
-//     i2c_addr : DS2482 base address where DS18B20 is connection to
+//     i2c_addr : DS2482 base address where DS18B20 is connected to
 // Return true  : device found, conversion started
 //        false : device not found
 //--------------------------------------------------------------------------
-uint8_t ds18b20_start_conversion(enum I2C_CH ch, uint8_t i2c_addr)
+uint8_t ds18b20_start_conversion(uint8_t i2c_addr)
 {
     uint8_t rval;
     
-    rval = OW_reset(ch, i2c_addr);
+    rval = OW_reset(i2c_addr);
     if (rval == true)
     {	// DS18B20 is present
-        OW_write_byte(ch, OW_SKIP_ROM_CMD  , i2c_addr); // only 1 sensor, use SKIP ROM command
-        OW_write_byte(ch, OW_CONVERT_T_FCMD, i2c_addr); // Start temperature conversion
+        OW_write_byte(OW_SKIP_ROM_CMD  , i2c_addr); // use SKIP ROM command to address all sensors
+        OW_write_byte(OW_CONVERT_T_FCMD, i2c_addr); // Start temperature conversion
     } // if
     return rval;
 } // ds18b20_start_conversion()
@@ -584,38 +585,39 @@ uint8_t ds18b20_start_conversion(enum I2C_CH ch, uint8_t i2c_addr)
 // Read a temperature from the DS18B20. At the highest resolution
 // (12-bit, default at power-up), it takes approx. 750 msec.
 //
-//     i2c_addr : DS2482 base address where DS18B20 is connection to
-// Return true  : device found, conversion started
-//        false : device not found
-// Variables:
-//      dvc : THLT = Read from the HLT DS18B20 sensor
-//            TMLT = Read from the MLT DS18B20 sensor
+//     i2c_addr : DS2482 base address where temp. sensors are connected to
+//          dvc : which one-wire device, only 2 devices are supported
+//         *err : returns true if error addressing DS2482 or DS18B20
+//           s2 : true = only read 2 bytes from the DS18B20 scratchpad
 // Returns  : The temperature from the DS18B20 in a signed Q8.7 format.
 //            Q8.7 is chosen here for accuracy reasons when filtering.
 //--------------------------------------------------------------------------
-int16_t ds18b20_read(enum I2C_CH ch, uint8_t i2c_addr, uint8_t *err, uint8_t s2)
+int16_t ds18b20_read(uint8_t i2c_addr, uint8_t dvc, uint8_t *err, uint8_t s2)
 {
     int16_t  temp = 0;   // the Temp. from the DS18B20 as an int
     uint8_t  scratch[9]; // Scratchpad of DS18B20
-    uint8_t  i;
+    uint8_t  i, idx;
     
-    *err = !OW_reset(ch, i2c_addr); // false: error
+    *err = !OW_reset(i2c_addr); // false: error
     if (!*err)
     {
-        OW_write_byte(ch, OW_SKIP_ROM_CMD        , i2c_addr); // only 1 sensor, use SKIP ROM command
-        OW_write_byte(ch, OW_READ_SCRATCHPAD_FCMD, i2c_addr); // Read scratchpad
+        idx = ((i2c_addr - DS2482_THLT_BASE) & 0x07) + dvc;
+        OW_write_byte(OW_MATCH_ROM_CMD, i2c_addr); // address sensor with MATCH ROM command
+        for (i = 0; i < 8; i++) OW_write_byte(ROM_ID[idx][i],i2c_addr);
+        //OW_write_byte(OW_SKIP_ROM_CMD        , i2c_addr); // only 1 sensor, use SKIP ROM command
+        OW_write_byte(OW_READ_SCRATCHPAD_FCMD, i2c_addr); // Read scratchpad
         if (s2)
         {	// only read 2 temperature bytes
-            scratch[0] = OW_read_byte(ch, i2c_addr);
-            scratch[1] = OW_read_byte(ch, i2c_addr);
-            *err = !OW_reset(ch, i2c_addr); // false: error
-        }
+            scratch[0] = OW_read_byte(i2c_addr);
+            scratch[1] = OW_read_byte(i2c_addr);
+            *err = !OW_reset(i2c_addr); // false: error
+        } // if
         else
         {
             crc8 = 0x00;
             for (i = 0; i < 9; i++)
             {
-                scratch[i] = OW_read_byte(ch, i2c_addr);
+                scratch[i] = OW_read_byte(i2c_addr);
                 if (i < 8) calc_crc8(scratch[i]);
                 //sprintf(s2,"%02X ",scratch[i]); uart_printf(s2);
             } // for

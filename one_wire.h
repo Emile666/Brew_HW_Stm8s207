@@ -36,22 +36,22 @@
 #define OW_READ_PSUP_FCMD        (0xB4)
 
 // 1-Wire API for DS2482 function prototypes
-uint8_t OW_reset(enum I2C_CH ch, uint8_t addr);
-uint8_t OW_touch_bit(enum I2C_CH ch, uint8_t sendbit, uint8_t addr);
-void    OW_write_bit(enum I2C_CH ch, uint8_t sendbit, uint8_t addr);
-uint8_t OW_read_bit(enum I2C_CH ch, uint8_t addr);
-uint8_t OW_write_byte(enum I2C_CH ch, uint8_t sendbyte, uint8_t addr);
-uint8_t OW_read_byte(enum I2C_CH ch, uint8_t addr);
-uint8_t OW_touch_byte(enum I2C_CH ch, uint8_t sendbyte, uint8_t addr);
-void    OW_block(enum I2C_CH ch, uint8_t *tran_buf, uint8_t tran_len, uint8_t addr);
-uint8_t OW_first(enum I2C_CH ch, uint8_t addr);
-uint8_t OW_next(enum I2C_CH ch, uint8_t addr);
-uint8_t OW_verify(enum I2C_CH ch, uint8_t addr);
+uint8_t OW_reset(uint8_t addr);
+uint8_t OW_touch_bit(uint8_t sendbit, uint8_t addr);
+void    OW_write_bit(uint8_t sendbit, uint8_t addr);
+uint8_t OW_read_bit(uint8_t addr);
+uint8_t OW_write_byte(uint8_t sendbyte, uint8_t addr);
+uint8_t OW_read_byte(uint8_t addr);
+uint8_t OW_touch_byte(uint8_t sendbyte, uint8_t addr);
+void    OW_block(uint8_t *tran_buf, uint8_t tran_len, uint8_t addr);
+uint8_t OW_first(uint8_t addr);
+uint8_t OW_next(uint8_t addr);
+uint8_t OW_verify(uint8_t addr);
 void    OW_target_setup(uint8_t family_code);
 void    OW_family_skip_setup(void);
-uint8_t OW_search(enum I2C_CH ch, uint8_t addr);
-uint8_t ds18b20_start_conversion(enum I2C_CH ch, uint8_t i2c_addr);
-int16_t ds18b20_read(enum I2C_CH ch, uint8_t i2c_addr, uint8_t *err, uint8_t s2);
+uint8_t OW_search(uint8_t addr);
+uint8_t ds18b20_start_conversion(uint8_t i2c_addr);
+int16_t ds18b20_read(uint8_t i2c_addr, uint8_t dvc, uint8_t *err, uint8_t s2);
 
 // Helper functions
 uint8_t calc_crc8(uint8_t data);

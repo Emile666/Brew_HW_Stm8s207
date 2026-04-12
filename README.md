@@ -31,9 +31,9 @@ Abbreviations used:
 - **SSR**: Solid State Relay, a device that switches 230 V AC and is controlled by a 5V signal from the microcontroller.
 
 Integrated Circuits (IC) used:
-- **STM8S207R8**: an 8-bits microntroller from STM-microelectronics running on 24 MHz and has 64 kB Flash onboard. If has 56 free GPIO pins available.
+- **STM8S207R8**: an 8-bits microcontroller from STM-microelectronics running on 24 MHz and has 64 kB Flash onboard. If has 56 free GPIO pins available.
 - **TD62783**: an 8-channel high-voltage Source Driver, they can switch up to 50 V and 500 mA per channel. Used here the switch the solenoid ball-valves.
-- **LM35**: a precision centrigrade temperature sensor, delivering 10 mV per °C. The analog value is read in by one of the AD-converters of the STM8S207.
+- **LM35**: a precision centigrade temperature sensor, delivering 10 mV per °C. The analog value is read in by one of the AD-converters of the STM8S207.
 - **LM92**: a 12-bit + sign digital temperature sensor with I2C interface.
 - **DS18B20**: an One-Wire 12-bit digital temperature sensor.
 - **DS2482**: an I2C to One-Wire bridge, connects to a microcontroller via the I2C interface and controls a One-Wire device, such as the DS18B20.

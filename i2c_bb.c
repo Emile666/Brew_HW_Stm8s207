@@ -90,12 +90,15 @@ uint8_t i2c_reset_bus(enum I2C_CH ch)
   Variables: ch: [0,1,2] I2C channel
   Returns  : --
   ---------------------------------------------------------------------------*/
-void i2c_init_bb(enum I2C_CH ch)
+uint8_t i2c_init_bb(enum I2C_CH ch)
 {
-        sda_1(ch);   // Set SDA to 1
-        scl_1(ch);   // Set SCL to 1
-        scl_out(ch); // SCL is Push-Pull output
-        sda_out(ch); // SDA line is Push-Pull output
+      uint8_t x = i2c_reset_bus(ch); // 0 = I2C bus is reset
+
+      sda_1(ch);         // Set SDA to 1
+      scl_1(ch);         // Set SCL to 1
+      scl_out(ch);       // SCL is Push-Pull output
+      sda_out(ch);       // SDA line is Push-Pull output
+      return x;
 } // i2c_init_bb()
 
 /*-----------------------------------------------------------------------------
@@ -110,7 +113,7 @@ uint8_t i2c_start_bb(enum I2C_CH ch, uint8_t address)
     
     scl_1(ch);          // SCL = 1
     sda_0(ch);          // SDA = 0
-    i2c_delay_5usec(1); // delay 5 usec.
+    i2c_clk_delay();    // small delay
     scl_0(ch);          // SCL = 0
     return i2c_write_bb(ch,address); // Post-condition: SCL = 0, SDA = 0
 } // i2c_start_bb;
@@ -124,7 +127,7 @@ uint8_t i2c_start_bb(enum I2C_CH ch, uint8_t address)
 uint8_t i2c_rep_start_bb(enum I2C_CH ch, uint8_t address)
 {   
     sda_1(ch);          // SDA = 1
-    i2c_delay_5usec(1); // delay 5 usec.
+    i2c_clk_delay();    // small delay
     return i2c_start_bb(ch,address);
 } // i2c_start_bb;
 
@@ -137,7 +140,7 @@ void i2c_stop_bb(enum I2C_CH ch)
 {   // Pre-condition : SDA = 0
     scl_1(ch);          // SCL = 1
     sda_1(ch);          // SDA = 1
-    i2c_delay_5usec(1); // delay 5 usec.
+    i2c_clk_delay();    // small delay
 } // i2c_stop_bb;
 
 /*-----------------------------------------------------------------------------
@@ -160,7 +163,7 @@ uint8_t i2c_write_bb(enum I2C_CH ch, uint8_t data)
         i >>= 1;   // next bit
     } // while
     sda_in(ch);         // set as input
-    i2c_delay_5usec(1); // delay 5 usec.
+    i2c_clk_delay();    // small delay
     scl_1(ch);
     if (sda_read(ch)) ack = I2C_NACK; // ack (0), nack (1) 
     scl_0(ch);   // SCL = 0
@@ -254,7 +257,7 @@ int16_t lm92_read(enum I2C_CH ch, uint8_t *err)
 } // lm92_read()
 
 //--------------------------------------------------------------------------
-// Perform a device reset on the DS2482
+// Perform a device reset on the DS2482, always connected to I2C_CH0.
 //
 // Device Reset
 //   S AD,0 [A] DRST [A] Sr AD,1 [A] [SS] A\ P
@@ -265,18 +268,18 @@ int16_t lm92_read(enum I2C_CH ch, uint8_t *err)
 // Returns: true if device was reset
 //          false device not detected or failure to perform reset
 //--------------------------------------------------------------------------
-bool ds2482_reset(enum I2C_CH ch, uint8_t addr)
+bool ds2482_reset(uint8_t addr)
 {
     uint8_t err, ret = 0;
     
     // generate I2C start + output address to I2C bus
-    err = (i2c_start_bb(ch, addr | I2C_WRITE) == I2C_NACK);
+    err = (i2c_start_bb(I2C_CH0, addr | I2C_WRITE) == I2C_NACK);
     if (!err)
     {
-        err  = (i2c_write_bb(ch, CMD_DRST)  == I2C_NACK); // write register address
-        i2c_rep_start_bb(ch, addr | I2C_READ);
-        ret = i2c_read_bb(ch, I2C_NACK); // Read byte, generate I2C stop condition
-        i2c_stop_bb(ch);
+        err  = (i2c_write_bb(I2C_CH0, CMD_DRST)  == I2C_NACK); // write register address
+        i2c_rep_start_bb(I2C_CH0, addr | I2C_READ);
+        ret = i2c_read_bb(I2C_CH0, I2C_NACK); // Read byte, generate I2C stop condition
+        i2c_stop_bb(I2C_CH0);
     } // if
     // check for failure due to incorrect read back of status
     if (!err && ((ret & 0xF7) == 0x10))
@@ -298,24 +301,24 @@ bool ds2482_reset(enum I2C_CH ch, uint8_t addr)
 // Returns:  true: config written and response correct
 //           false: response incorrect
 //--------------------------------------------------------------------------
-bool ds2482_write_config(enum I2C_CH ch, uint8_t addr)
+bool ds2482_write_config(uint8_t addr)
 {
     uint8_t err, read_config = 0;
     
     // generate I2C start + output address to I2C bus
-    err = (i2c_start_bb(ch, addr | I2C_WRITE) == I2C_NACK);
+    err = (i2c_start_bb(I2C_CH0, addr | I2C_WRITE) == I2C_NACK);
     if (!err)
     {
-        err  = (i2c_write_bb(ch, CMD_WCFG)  == I2C_NACK); // write register address
-        err |= (i2c_write_bb(ch, DS2482_CONFIG)  == I2C_NACK); // write register address
-        i2c_rep_start_bb(ch, addr | I2C_READ);
-        read_config = i2c_read_bb(ch, I2C_NACK); // Read byte, generate I2C stop condition
-        i2c_stop_bb(ch);
+        err  = (i2c_write_bb(I2C_CH0, CMD_WCFG)  == I2C_NACK); // write register address
+        err |= (i2c_write_bb(I2C_CH0, DS2482_CONFIG)  == I2C_NACK); // write register address
+        i2c_rep_start_bb(I2C_CH0, addr | I2C_READ);
+        read_config = i2c_read_bb(I2C_CH0, I2C_NACK); // Read byte, generate I2C stop condition
+        i2c_stop_bb(I2C_CH0);
     } // if
     // check for failure due to incorrect read back
     if (err || (read_config != DS2482_CONFIG))
     {
-        ds2482_reset(ch, addr); // handle error
+        ds2482_reset(addr); // handle error
         return false;
     } // if
     return true;
@@ -329,12 +332,12 @@ bool ds2482_write_config(enum I2C_CH ch, uint8_t addr)
 // Returns: true if device was detected and written
 //          false device not detected or failure to write configuration byte
 //--------------------------------------------------------------------------
-bool ds2482_detect(enum I2C_CH ch, uint8_t addr)
+bool ds2482_detect(uint8_t addr)
 {
-   if (!ds2482_reset(ch, addr)) // reset the DS2482
+   if (!ds2482_reset(addr)) // reset the DS2482
       return false;
 
-   if (!ds2482_write_config(ch, addr)) // write default configuration settings
+   if (!ds2482_write_config(addr)) // write default configuration settings
         return false;
    else return true;
 } // ds2482_detect()
@@ -347,7 +350,7 @@ bool ds2482_detect(enum I2C_CH ch, uint8_t addr)
 //
 // Returns: The DS2482 status byte result from the triplet command
 //--------------------------------------------------------------------------
-uint8_t ds2482_search_triplet(enum I2C_CH ch, uint8_t search_direction, uint8_t addr)
+uint8_t ds2482_search_triplet(uint8_t search_direction, uint8_t addr)
 {
     uint8_t err, status;
     int poll_count = 0;
@@ -360,26 +363,26 @@ uint8_t ds2482_search_triplet(enum I2C_CH ch, uint8_t search_direction, uint8_t 
     //  SS indicates byte containing search direction bit value in msbit
     //
     // generate I2C start + output address to I2C bus
-    err = (i2c_start_bb(ch, addr | I2C_WRITE) == I2C_NACK);
+    err = (i2c_start_bb(I2C_CH0, addr | I2C_WRITE) == I2C_NACK);
     if (!err)
     {
-        err  = (i2c_write_bb(ch, CMD_1WT) == I2C_NACK); // write register address
-        err |= (i2c_write_bb(ch, search_direction ? 0x80 : 0x00) == I2C_NACK);
-        i2c_rep_start_bb(ch, addr | I2C_READ);
+        err  = (i2c_write_bb(I2C_CH0, CMD_1WT) == I2C_NACK); // write register address
+        err |= (i2c_write_bb(I2C_CH0, search_direction ? 0x80 : 0x00) == I2C_NACK);
+        i2c_rep_start_bb(I2C_CH0, addr | I2C_READ);
         // loop checking 1WB bit for completion of 1-Wire operation 
         // abort if poll limit reached
-        status = i2c_read_bb(ch, I2C_ACK); // Read byte
+        status = i2c_read_bb(I2C_CH0, I2C_ACK); // Read byte
         do
         {
-            if (status & STATUS_1WB) status = i2c_read_bb(ch, I2C_ACK);
+            if (status & STATUS_1WB) status = i2c_read_bb(I2C_CH0, I2C_ACK);
         }
         while ((status & STATUS_1WB) && (poll_count++ < DS2482_OW_POLL_LIMIT));
-        status = i2c_read_bb(ch, I2C_NACK);
-        i2c_stop_bb(ch);
+        status = i2c_read_bb(I2C_CH0, I2C_NACK);
+        i2c_stop_bb(I2C_CH0);
         // check for failure due to poll limit reached
         if (poll_count >= DS2482_OW_POLL_LIMIT)
         {
-            ds2482_reset(ch, addr); // handle error
+            ds2482_reset(addr); // handle error
             return false;
         } // if
         return status;

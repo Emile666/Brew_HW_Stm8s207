@@ -30,8 +30,9 @@
 #include "scheduler.h"
 #include "max7219.h"
 
-extern uint8_t    remoteIP[4]; // remote IP address for the incoming packet whilst it's being processed
-extern uint8_t    ROM_NO[];    // One-wire hex-address
+extern uint8_t    remoteIP[4];  // remote IP address for the incoming packet whilst it's being processed
+extern uint8_t    ROM_NO[8];    // One-wire hex-address
+extern uint8_t    ROM_ID[8][8]; // Array of One-wire hex-address
 extern uint8_t    crc8;
 
 extern bool       ethernet_WIZ550i;
@@ -75,9 +76,18 @@ extern uint8_t    tboil_err;           // 1 = error reading sensor
 
 extern int16_t    thlt_ow_87;          // THLT Temperature in °C * 128
 extern uint8_t    thlt_ow_err;         // 1 = error reading sensor
+extern int16_t    thlt_ow2_87;         // THLT Temperature from 2nd DS18B20 in °C * 128
+extern uint8_t    thlt_ow2_err;        // 1 = Read error from DS18B20
 
 extern int16_t    tmlt_ow_87;          // TMLT Temperature in °C * 128
 extern uint8_t    tmlt_ow_err;         // 1 = error reading sensor
+extern int16_t    tmlt_ow2_87;         // TMLT Temperature from 2nd DS18B20 in °C * 128
+extern uint8_t    tmlt_ow2_err;        // 1 = Read error from DS18B20
+
+extern uint8_t    thlt_ow_num;         // Number of DS18B20 THLT sensors connected
+extern uint8_t    tmlt_ow_num;         // Number of DS18B20 TMLT sensors connected
+extern uint8_t    tcfc_ow_num;         // Number of DS18B20 TCFC sensors connected
+extern uint8_t    tboil_ow_num;        // Number of DS18B20 TBOIL sensors connected
 
 extern uint32_t   flow_hlt_mlt;     // Count from flow-sensor between HLT and MLT
 extern uint32_t   flow_mlt_boil;    // Count from flow-sensor between MLT and boil-kettle
@@ -154,7 +164,7 @@ void i2c_scan(enum I2C_CH ch, bool rs232_udp)
     uint8_t x = 0;
     int     i;     // Leave this as an int!
     
-    sprintf(s,"I2C[%1d]: ",ch);
+    sprintf(s,"I2C%1d: ",ch);
     pr(rs232_udp,s); // print to UART or ETH
     for (i = 0x02; i < 0xff; i+=2)
     {
@@ -231,30 +241,56 @@ uint8_t ethernet_command_handler(char *s)
 } // ethernet_command_handler()
 
 /*-----------------------------------------------------------------------------
-  Purpose  : Finds a One-Wire device
-  Variables: ch       : the I2C channel number, 0 is the main channel
-             i2c_addr : I2C-address of DS2482 bridge
+  Purpose  : Finds One-Wire devices connected to a DS2482, every DS2482 can have
+             up to two DS18B20 sensors. I2C channel number is always I2C_CH0.
+  Variables: i2c_addr : I2C-address of DS2482 bridge
              rs232_udp: [RS232_USB, ETHERNET_UDP] Response via RS232/USB or Ethernet/Udp
-  Returns  : -
+  Returns  : Number of sensors found
   ---------------------------------------------------------------------------*/
-void find_OW_device(enum I2C_CH ch, uint8_t i2c_addr, bool rs232_udp)
+uint8_t find_OW_device(uint8_t i2c_addr, bool rs232_udp)
 {
     char    s2[40]; // Used for printing to RS232 port
-    uint8_t i,rval;
+    uint8_t rval;
+    uint8_t j = (i2c_addr - DS2482_THLT_BASE) & 0x07; // index in ROM_ID array
+    uint8_t cnt = 0;                                  // Number of sensors found
     
-    rval = OW_first(ch, i2c_addr); // Find ROM ID of first DS18B20
+    rval = OW_first(i2c_addr); // Find ROM ID of first DS18B20
     if (rval) 
     {
-        for (i= 0; i < 8; i++)
+        while (rval)
         {
-            sprintf(s2,"%02X ",ROM_NO[i]); // global array
-            pr(rs232_udp,s2); // print to UART or ETH
-        } // for	
-        pr(rs232_udp,"."); // conclude a MAC address
+            for (uint8_t i = 0; i < 8; i++)
+            {   // Print OW address of DS18B20
+                sprintf(s2,"%02X ",ROM_NO[i]); // global array
+                ROM_ID[j][i] = ROM_NO[i];      // Copy OW ROM-ID found
+                pr(rs232_udp,s2);              // print to UART or ETH
+            } // for	
+            rval = OW_next(i2c_addr);          // Find ROM ID of next DS18B20
+            if (rval) pr(rs232_udp,"- ");      // conclude a ROM ID if another sensor is found
+            j++;                               // Max. 2 ROM-IDs per DS2482
+            cnt++;                             // Number of sensors found
+        } // while
     } // if
     else pr(rs232_udp,"-");
     pr(rs232_udp,"\n");
+    return cnt; // Number of sensors found
 } // find_OW_device()
+
+/*-----------------------------------------------------------------------------
+  Purpose  : Find and Print all One-Wire devices. There are 4 DS2482 ICs in the
+             brewing system. Every DS2482 can have up to two DS18B20 sensors.
+             Every DS2482 IC is connected to I2C_CH0.
+             It also updates the global counters of the sensors found.
+  Variables: rs232_udp: [RS232_USB, ETHERNET_UDP] Response via RS232/USB or Ethernet/Udp
+  Returns  : -
+  ---------------------------------------------------------------------------*/
+void find_OW_devices(bool rs232_udp)
+{
+    thlt_ow_num  = find_OW_device(DS2482_THLT_BASE ,rs232_udp); // Find ROM ID of HLT  DS18B20
+    tmlt_ow_num  = find_OW_device(DS2482_TMLT_BASE ,rs232_udp); // Find ROM ID of MLT  DS18B20
+    tboil_ow_num = find_OW_device(DS2482_TBOIL_BASE,rs232_udp); // Find ROM ID of BOIL DS18B20
+    tcfc_ow_num  = find_OW_device(DS2482_TCFC_BASE ,rs232_udp); // Find ROM ID of CFC  DS18B20
+} // find_OW_devices()
 
 /*-----------------------------------------------------------------------------
   Purpose  : Process PWM signal for all system-modes. 
@@ -407,7 +443,7 @@ void list_all_tasks(bool rs232_udp)
     {
         while ((index < MAX_TASKS) && (task_list[index].Period != 0))
         {
-            sprintf(s,"%s,%d,%x,%d,%d,\n", task_list[index].Name, 
+            sprintf(s,"%s,%d,%x,%d,%d\n", task_list[index].Name, 
                     task_list[index].Period  , task_list[index].Status, 
                     task_list[index].Duration, task_list[index].Duration_Max);
             pr(rs232_udp,s); // print to USB or ETH
@@ -452,7 +488,7 @@ uint8_t execute_single_command(char *s, bool rs232_udp)
    uint8_t  num  = atoi(&s[1]); // convert number in command (until space is found)
    uint8_t  rval = NO_ERR;
    uint16_t temp;
-   char     s2[40]; // Used for printing to RS232 port
+   char     s2[60]; // Used for printing to RS232 port
    
    switch (s[0])
    {
@@ -462,13 +498,15 @@ uint8_t execute_single_command(char *s, bool rs232_udp)
                {
                case 0: // Temperature Processing, send all Temperatures to PC
                    temp = lm35_temp / 100;
-                   sprintf(s2,"T=%d.%02d,",temp,lm35_temp-100*temp);   // LM35
-                   process_temperatures(thlt_err,s2,thlt_temp_87,0);   // Thlt-i2c
-                   process_temperatures(tmlt_err,s2,tmlt_temp_87,0);   // Tmlt-i2c
-                   process_temperatures(tboil_err,s2,tboil_temp_87,0); // Tboil-ow
-                   process_temperatures(tcfc_err,s2,tcfc_temp_87,0);   // Tcfc-ow
-                   process_temperatures(thlt_ow_err,s2,thlt_ow_87,0);  // Thlt_ow
-                   process_temperatures(tmlt_ow_err,s2,tmlt_ow_87,1);  // Tmlt_ow
+                   sprintf(s2,"T=%d.%02d,",temp,lm35_temp-100*temp);    // LM35
+                   process_temperatures(thlt_err,s2,thlt_temp_87,0);    // Thlt-i2c
+                   process_temperatures(tmlt_err,s2,tmlt_temp_87,0);    // Tmlt-i2c
+                   process_temperatures(tboil_err,s2,tboil_temp_87,0);  // Tboil-ow
+                   process_temperatures(tcfc_err,s2,tcfc_temp_87,0);    // Tcfc-ow
+                   process_temperatures(thlt_ow_err,s2,thlt_ow_87,0);   // Thlt_ow
+                   process_temperatures(tmlt_ow_err,s2,tmlt_ow_87,0);   // Tmlt_ow
+                   process_temperatures(thlt_ow2_err,s2,thlt_ow2_87,0); // Thlt_ow2
+                   process_temperatures(tmlt_ow2_err,s2,tmlt_ow2_87,1); // Tmlt_ow2
                    break;
                case 9: // FLOW Processing, send all flows to PC
                    strcpy(s2,"F=");
@@ -485,7 +523,7 @@ uint8_t execute_single_command(char *s, bool rs232_udp)
                {		 
                    pr(rs232_udp,s2); // print to UART or ETH
                } // if
-               pri(rs232_udp); // End print function
+               pre(rs232_udp); // End print function
                break;
                
 	   case 'b': // PWM signal for Boil-Kettle Modulating Gas-Burner
@@ -597,9 +635,9 @@ uint8_t execute_single_command(char *s, bool rs232_udp)
                switch (num)
                {
                    case 0: // Ebrew revision
-                       print_ebrew_revision(s2); // print CVS revision number
-                       pr(rs232_udp,s2); // print to UART or ETH
-                       delayed_start_enable = false;  // disable delayed-start when PC program is powering-up
+                       print_ebrew_revision(s2);     // print CVS revision number
+                       pr(rs232_udp,s2);             // print to UART or ETH
+                       delayed_start_enable = false; // disable delayed-start when PC program is powering-up
                        break;
                    case 1: // List all I2C devices
                        i2c_scan(I2C_CH0, rs232_udp); // Start with main I2C channel
@@ -610,10 +648,21 @@ uint8_t execute_single_command(char *s, bool rs232_udp)
                        list_all_tasks(rs232_udp); 
                        break;	
                    case 3: // List all One-Wire Devices (finding a sensor costs approx. 350 msec.)
-                       find_OW_device(I2C_CH0,DS2482_THLT_BASE ,rs232_udp); // Find ROM ID of HLT  DS18B20
-                       find_OW_device(I2C_CH0,DS2482_TBOIL_BASE,rs232_udp); // Find ROM ID of BOIL DS18B20
-                       find_OW_device(I2C_CH0,DS2482_TCFC_BASE ,rs232_udp); // Find ROM ID of CFC  DS18B20
-                       find_OW_device(I2C_CH0,DS2482_TMLT_BASE ,rs232_udp); // Find ROM ID of MLT  DS18B20
+                       find_OW_devices(rs232_udp);
+                       sprintf(s2,"HLT:%d,",thlt_ow_num);
+                       process_temperatures(thlt_ow_err,s2,thlt_ow_87,0);   // Thlt_ow
+                       process_temperatures(thlt_ow2_err,s2,thlt_ow2_87,1); // Thlt_ow2
+                       pr(rs232_udp,s2); // print to UART or ETH
+                       sprintf(s2,"MLT:%d,",tmlt_ow_num);
+                       process_temperatures(tmlt_ow_err,s2,tmlt_ow_87,0);   // Tmlt_ow
+                       process_temperatures(tmlt_ow2_err,s2,tmlt_ow2_87,1); // Tmlt_ow2
+                       pr(rs232_udp,s2); // print to UART or ETH
+                       sprintf(s2,"BLK:%d,",tboil_ow_num);
+                       process_temperatures(tboil_err,s2,tboil_temp_87,1);  // Tboil_ow
+                       pr(rs232_udp,s2); // print to UART or ETH
+                       sprintf(s2,"CFC:%d,",tcfc_ow_num);
+                       process_temperatures(tcfc_err,s2,tcfc_temp_87,1);    // Tcfc_ow
+                       pr(rs232_udp,s2); // print to UART or ETH
                        break;
                    default: rval = ERR_NUM;
                    break;

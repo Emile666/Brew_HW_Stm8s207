@@ -89,8 +89,8 @@ enum I2C_CH
 // I2C channel 0 is used for all DS2482 communications
 #define SCL0_in    (PE_DDR &= ~SCL0) 			  /* Set SCL to input */
 #define SCL0_out   {PE_DDR |=  SCL0; PE_CR1 |=  SCL0;}    /* Set SCL to push-pull output */
-#define SCL0_0     {PE_ODR &= ~SCL0; i2c_delay_5usec(1);} /* Set SCL to 0 */
-#define SCL0_1     {PE_ODR |=  SCL0; i2c_delay_5usec(1);} /* Set SCL to 1 */
+#define SCL0_0     {PE_ODR &= ~SCL0; i2c_clk_delay();}    /* Set SCL to 0 */
+#define SCL0_1     {PE_ODR |=  SCL0; i2c_clk_delay();}    /* Set SCL to 1 */
 #define SCL0_rd    (PE_IDR &   SCL0) 			  /* Read from SCL */
 #define SDA0_in    (PE_DDR &= ~SDA0) 			  /* Set SDA to input */
 #define SDA0_out   {PE_DDR |=  SDA0; PE_CR1 |=  SDA0;}    /* Set SDA to push-pull output */
@@ -135,9 +135,20 @@ static inline void i2c_delay_5usec(uint16_t x)
       
     for (j = 0; j < x; j++)
     {
-        for (i = 0; i < 80; i++) ; // 80 * 62.5 nsec (16 MHz) = 5 usec.
+        for (i = 0; i < 80; i++) ; // 80 * 41.7 nsec (24 MHz) = 3.3 usec.
     } // for j
 } // i2c_delay_5usec()
+
+/*-----------------------------------------------------------------------------
+  Purpose  : This function creates a small delay (approximately), so that
+             I2C0 clock frequency is approx. 100 kHz.
+  Variables: --
+  Returns  : -
+  ---------------------------------------------------------------------------*/
+static inline void i2c_clk_delay(void)
+{
+    for (uint8_t i = 0; i < 12; i++) ; // 20 * 41.7 nsec (24 MHz) = 0.96 usec.
+} // i2c_clk_delay()
 
 /*-----------------------------------------------------------------------------
   Purpose  : Sets the SCL line to input
@@ -299,7 +310,7 @@ static inline uint8_t sda_read(enum I2C_CH ch)
 // I2C-peripheral routines
 //----------------------------
 uint8_t i2c_reset_bus(enum I2C_CH ch);                  // Reset I2C-bus after a lock-up 
-void    i2c_init_bb(enum I2C_CH ch);                    // Initializes the I2C Interface. Needs to be called only once
+uint8_t i2c_init_bb(enum I2C_CH ch);                    // Initializes the I2C Interface. Needs to be called only once
 uint8_t i2c_start_bb(enum I2C_CH ch, uint8_t addr);     // Issues a start condition and sends address and transfer direction
 uint8_t i2c_rep_start_bb(enum I2C_CH ch, uint8_t addr); // Issues a repeated start condition and sends address and transfer direction
 void    i2c_stop_bb(enum I2C_CH ch);                    // Terminates the data transfer and releases the I2C bus
@@ -307,9 +318,10 @@ uint8_t i2c_write_bb(enum I2C_CH ch, uint8_t data);     // Send one byte to I2C 
 uint8_t i2c_read_bb(enum I2C_CH ch, uint8_t ack);       // Read one byte from I2C device and calls i2c_stop_bb()
 
 int16_t lm92_read(enum I2C_CH ch, uint8_t *err);
-bool    ds2482_reset(enum I2C_CH ch, uint8_t addr);
-bool    ds2482_write_config(enum I2C_CH ch, uint8_t addr);
-bool    ds2482_detect(enum I2C_CH ch, uint8_t addr);
-uint8_t ds2482_search_triplet(enum I2C_CH ch, uint8_t search_direction, uint8_t addr);
+
+bool    ds2482_reset(uint8_t addr);                     // All DS2482 ICs are connected to I2C_CH0
+bool    ds2482_write_config(uint8_t addr);
+bool    ds2482_detect(uint8_t addr);
+uint8_t ds2482_search_triplet(uint8_t search_direction, uint8_t addr);
 
 #endif

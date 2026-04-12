@@ -31,9 +31,11 @@ $RECYCLE.BIN/
 *.pbd.*
 *.pbi
 *.pbi.*
+*.pbw
 *.ewd
 *.ewt
 *.log
+*.ninja*
 Debug/Obj/*.db
 Debug/Exe/*.out
 Debug/List/*.lst

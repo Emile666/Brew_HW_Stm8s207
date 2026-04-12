@@ -42,7 +42,7 @@ extern char rs232_inbuf[];
 // Global variables
 uint8_t      local_ip[4]      = {0,0,0,0}; // local IP address, gets a value from init_WIZ550IO_module() -> dhcp_begin()
 uint16_t     local_port;                   // local port number read back from wiz550i module
-const char  *ebrew_revision   = "$Revision: 2.05 $"; // ebrew revision number
+const char  *ebrew_revision   = "$Revision: 2.06 $"; // ebrew revision number
 bool         ethernet_WIZ550i = true;		     // true = start WIZ550i at power-up
 
 // The following variables are defined in Udp.c
@@ -97,7 +97,10 @@ ma       thlt_ow_ma;                // struct for THLT_OW moving_average filter
 int16_t  thlt_ow_old_87;            // Previous value of thlt_ow_87
 int16_t  thlt_ow_87;                // THLT Temperature from DS18B20 in °C * 128
 uint8_t  thlt_ow_err = 0;	    // 1 = Read error from DS18B20
- 
+uint8_t  thlt_ow_num = 0;           // Number of DS18B20 THLT sensors connected
+int16_t  thlt_ow2_87;               // THLT Temperature from 2nd DS18B20 in °C * 128
+uint8_t  thlt_ow2_err = 0;	    // 1 = Read error from DS18B20
+
 //------------------------------------------------
 // TMLT parameters and variables (I2C)
 //------------------------------------------------
@@ -115,6 +118,9 @@ ma       tmlt_ow_ma;                // struct for TMLT_OW moving_average filter
 int16_t  tmlt_ow_old_87;            // Previous value of tmlt_ow_87
 int16_t  tmlt_ow_87;                // TMLT Temperature from DS18B20 in °C * 128
 uint8_t  tmlt_ow_err = 0;	    // 1 = Read error from DS18B20
+uint8_t  tmlt_ow_num = 0;           // Number of DS18B20 TMLT sensors connected
+int16_t  tmlt_ow2_87;               // TMLT Temperature from 2nd DS18B20 in °C * 128
+uint8_t  tmlt_ow2_err = 0;	    // 1 = Read error from DS18B20
 
 //------------------------------------------------
 // TCFC parameters and variables (One-Wire only)
@@ -123,6 +129,7 @@ ma       tcfc_ma;                   // struct for TCFC moving_average filter
 int16_t  tcfc_old_87;               // Previous value of tcfc_temp_87
 int16_t  tcfc_temp_87;              // TCFC Temperature in °C * 128
 uint8_t  tcfc_err = 0;              // 1 = Read error from DS18B20  
+uint8_t  tcfc_ow_num = 0;           // Number of DS18B20 TCFC sensors connected
 
 //------------------------------------------------
 // TBOIL parameters and variables (One-Wire only)
@@ -131,6 +138,7 @@ ma       tboil_ma;                  // struct for TBOIL moving_average filter
 int16_t  tboil_old_87;              // Previous value of tboil_temp_87
 int16_t  tboil_temp_87;             // TBOIL Temperature in °C * 128
 uint8_t  tboil_err = 0;             // 1 = Read error from DS18B20
+uint8_t  tboil_ow_num = 0;          // Number of DS18B20 TBOIL sensors connected
 
 uint32_t flow_hlt_mlt  = 0UL; // Flow 1
 uint32_t flow_mlt_boil = 0UL; // Flow 2
@@ -475,16 +483,19 @@ void tmlt_task(void)
 
 /*--------------------------------------------------------------------
   Purpose  : This is the task that processes the temperatures from
-             the HLT One-Wire sensor. The sensor has its
-             own DS2482 I2C-to-One-Wire bridge. Since this sensor has 4
-             fractional bits (1/2, 1/4, 1/8, 1/16), a signed Q8.4 format
-             would be sufficient. However all variables are stored in a
+             the HLT One-Wire sensors. A maximum of two sensors are
+             supported. The sensor has its own DS2482 I2C-to-One-Wire 
+             bridge. Since this sensor has 4 fractional bits (1/2, 1/4, 
+             1/8, 1/16), a signed Q8.4 format would be sufficient. 
+             However all variables are stored in a
              Q8.7 format for accuracy reasons when filtering. All variables
              with this format have the extension _87.
              This task is called every second so that every 2 seconds a new
              temperature is present.
   Variables: thlt_ow_87 : HLT temperature read from sensor in Q8.7 format
 	     thlt_ow_err: 1=error
+             thlt_ow2_87 : HLT temperature read from 2nd sensor in Q8.7 format
+	     thlt_ow2_err: 1=error
   Returns  : -
   --------------------------------------------------------------------*/
 void owh_task(void)
@@ -494,18 +505,25 @@ void owh_task(void)
     
     switch (owh_std)
     {   
-    case 0: // Start Conversion
-        ds18b20_start_conversion(I2C_CH0, DS2482_THLT_BASE);
-        owh_std = 1;
+    case 0: // Start Conversion for all sensors
+        if (ds18b20_start_conversion(DS2482_THLT_BASE))
+        {
+            owh_std = 1; // Only read OW device if DS2482 is found
+        } // if
         break;
     case 1: // Read Thlt_ow device
         thlt_ow_old_87 = thlt_ow_87; // copy previous value of thlt_ow
-        tmp = ds18b20_read(I2C_CH0, DS2482_THLT_BASE, &thlt_ow_err,1);
+        tmp = ds18b20_read(DS2482_THLT_BASE, 0, &thlt_ow_err,1);
         if (!thlt_ow_err)
         {
             slope_limiter(temp_slope_87, thlt_ow_old_87, &tmp);
             thlt_ow_87 = (int16_t)(moving_average(&thlt_ow_ma, (float)tmp) + 0.5);
         } // if
+        if (thlt_ow_num > 1)
+        {   // More than 1 sensor?
+            thlt_ow2_87 = ds18b20_read(DS2482_THLT_BASE, 1, &thlt_ow2_err,1);
+        } // if
+        else thlt_ow2_err = 1;
         owh_std = 0;
         break;
     } // switch
@@ -514,17 +532,20 @@ void owh_task(void)
 
 /*--------------------------------------------------------------------
   Purpose  : This is the task that processes the temperatures from
-             the MLT One-Wire sensor. The sensor has its
-             own DS2482 I2C-to-One-Wire bridge. Since this sensor has 4
-             fractional bits (1/2, 1/4, 1/8, 1/16), a signed Q8.4 format
-             would be sufficient. However all variables are stored in a
+             the MLT One-Wire sensors. A maximum of two sensors are
+             supported. The sensor has its own DS2482 I2C-to-One-Wire 
+             bridge. Since this sensor has 4 fractional bits (1/2, 1/4, 
+             1/8, 1/16), a signed Q8.4 format would be sufficient. 
+             However all variables are stored in a
              Q8.7 format for accuracy reasons when filtering. All variables
              with this format have the extension _87.
              This task is called every second so that every 2 seconds a new
              temperature is present.
   Variables: tmlt_ow_87 : MLT temperature read from sensor in Q8.7 format
 	     tmlt_ow_err: 1=error
-  Returns  : -
+             tmlt_ow2_87 : HLT temperature read from 2nd sensor in Q8.7 format
+	     tmlt_ow2_err: 1=error
+Returns  : -
   --------------------------------------------------------------------*/
 void owm_task(void)
 {
@@ -534,17 +555,24 @@ void owm_task(void)
     switch (owm_std)
     {   
     case 0: // Start conversion
-        ds18b20_start_conversion(I2C_CH0, DS2482_TMLT_BASE);
-        owm_std = 1;
+        if (ds18b20_start_conversion(DS2482_TMLT_BASE))
+        {
+            owm_std = 1; // Only read OW device if DS2482 is found
+        } // if
         break;
     case 1: // Read Tmlt_ow device
         tmlt_ow_old_87 = tmlt_ow_87; // copy previous value of tmlt_ow
-        tmp = ds18b20_read(I2C_CH0, DS2482_TMLT_BASE, &tmlt_ow_err,1);
+        tmp = ds18b20_read(DS2482_TMLT_BASE,0,&tmlt_ow_err,1);
         if (!tmlt_ow_err)
         {
             slope_limiter(temp_slope_87, tmlt_ow_old_87, &tmp);
             tmlt_ow_87 = (int16_t)(moving_average(&tmlt_ow_ma, (float)tmp) + 0.5);
         } // if
+        if (tmlt_ow_num > 1)
+        {   // More than 1 sensor?
+            tmlt_ow2_87 = ds18b20_read(DS2482_TMLT_BASE, 1, &tmlt_ow2_err,1);
+        } // if
+        else tmlt_ow2_err = 1;
         owm_std = 0;
         break;
     } // switch
@@ -572,18 +600,20 @@ void owb_task(void)
     switch (owb_std)
     {   
     case 0: // Start conversion
-        ds18b20_start_conversion(I2C_CH0, DS2482_TBOIL_BASE);
-        owb_std = 1;
+        if (ds18b20_start_conversion(DS2482_TBOIL_BASE))
+        {
+            owb_std = 1; // Only read OW device if DS2482 is found
+        } // if
         break;
     case 1: // Read Tboil device
         tboil_old_87 = tboil_temp_87; // copy previous value of tboil_temp
-        tmp = ds18b20_read(I2C_CH0, DS2482_TBOIL_BASE, &tboil_err,1);
+        tmp = ds18b20_read(DS2482_TBOIL_BASE,0,&tboil_err,1);
         if (!tboil_err)
         {
             slope_limiter(temp_slope_87, tboil_old_87, &tmp);
             tboil_temp_87 = (int16_t)(moving_average(&tboil_ma, (float)tmp) + 0.5);
         } // if
-        owb_std = 0;
+        owb_std = 0; // only 1 sensor is currently supported
         break;
     } // switch
 } // owb_task()
@@ -610,18 +640,20 @@ void owc_task(void)
     switch (owc_std)
     {   
     case 0: // Start conversion
-        ds18b20_start_conversion(I2C_CH0, DS2482_TCFC_BASE);
-        owc_std = 1;
+        if (ds18b20_start_conversion(DS2482_TCFC_BASE))
+        {
+            owc_std = 1; // Only read OW device if DS2482 is found
+        } // if
         break;
     case 1: // Read Tcfc device
         tcfc_old_87 = tcfc_temp_87; // copy previous value of tcfc_temp
-        tmp = ds18b20_read(I2C_CH0, DS2482_TCFC_BASE, &tcfc_err,1);
+        tmp = ds18b20_read(DS2482_TCFC_BASE,0,&tcfc_err,1);
         if (!tcfc_err)
         {
             slope_limiter(temp_slope_87, tcfc_old_87, &tmp);
             tcfc_temp_87 = (int16_t)(moving_average(&tcfc_ma, (float)tmp) + 0.5);
         } // if
-        owc_std = 0;
+        owc_std = 0;  // only 1 sensor is currently supported
         break;
     } // switch
 } // owc_task()
@@ -724,9 +756,10 @@ uint8_t init_WIZ550IO_module(void)
   ------------------------------------------------------------------*/
 int main(void)
 {
-    char    s[25];     // Needed for uart_printf() and sprintf()
+    char    s[30];     // Needed for uart_printf() and sprintf()
     int	    udp_packet_size;
     uint8_t clk;       // which clock is active
+    uint8_t x0,x1,x2;
     
     __disable_interrupt();
     //-------------------------------------------------------------------
@@ -737,9 +770,9 @@ int main(void)
     uart_init(clk);           // UART init. to BAUDRATE (uart.h),8,N,1
     setup_timers(clk);        // Set Timer 2 to 1 kHz and timer1 and timer3 for PWM output
     setup_gpio_ports();       // Init. needed output-ports for LED and keys
-    i2c_init_bb(I2C_CH0);     // Init. I2C bus 0 for bit-banging
-    i2c_init_bb(I2C_CH1);     // Init. I2C bus 1 for bit-banging
-    i2c_init_bb(I2C_CH2);     // Init. I2C bus 2 for bit-banging
+    x0 = i2c_init_bb(I2C_CH0); // Init. I2C bus 0 for bit-banging
+    x1 = i2c_init_bb(I2C_CH1); // Init. I2C bus 1 for bit-banging
+    x2 = i2c_init_bb(I2C_CH2); // Init. I2C bus 2 for bit-banging
     //pwm_write(PWM_BK ,0);      // Start with 0 % duty-cycle for Boil-kettle
     //pwm_write(PWM_HLT,0);      // Start with 0 % duty-cycle for HLT
     spi_init();               // Init. SPI module: 3 MHz clock, Master mode, SPI mode 1
@@ -805,6 +838,18 @@ int main(void)
     if      (clk == HSI) uart_printf("HSI\n");
     else if (clk == LSI) uart_printf("LSI\n");
     else if (clk == HSE) uart_printf("HSE\n");
+    sprintf(s,"I2C0: %s, ", !x0 ? "reset ok" : "NOT reset"); 
+    uart_printf(s);
+    i2c_scan(I2C_CH0, RS232_USB); // List all devices found
+    sprintf(s,"I2C1: %s, ", !x1 ? "reset ok" : "NOT reset"); 
+    uart_printf(s);
+    i2c_scan(I2C_CH1, RS232_USB); // List all devices found
+    sprintf(s,"I2C2: %s, ", !x2 ? "reset ok" : "NOT reset"); 
+    uart_printf(s);
+    i2c_scan(I2C_CH2, RS232_USB); // List all devices found
+  
+    find_OW_devices(RS232_USB); // Find and Print all One-Wire devices to UART
+   
     uart_printf("Starting main()\n");
 
     while(1)
