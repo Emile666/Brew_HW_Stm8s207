@@ -42,7 +42,7 @@ extern char rs232_inbuf[];
 // Global variables
 uint8_t      local_ip[4]      = {0,0,0,0}; // local IP address, gets a value from init_WIZ550IO_module() -> dhcp_begin()
 uint16_t     local_port;                   // local port number read back from wiz550i module
-const char  *ebrew_revision   = "$Revision: 2.06 $"; // ebrew revision number
+const char  *ebrew_revision   = "$Revision: 2.07 $"; // ebrew revision number
 bool         ethernet_WIZ550i = true;		     // true = start WIZ550i at power-up
 
 // The following variables are defined in Udp.c
@@ -87,6 +87,7 @@ ma       thlt_ma;                   // struct for THLT moving_average filter
 int16_t  thlt_old_87;               // Previous value of thlt_temp_87
 int16_t  thlt_temp_87;              // THLT Temperature from LM92 in °C * 128
 uint8_t  thlt_err = 0;              // 1 = Read error from LM92
+uint16_t hlt_dist;                  // HLT distance in mm from ultrasonic sensor
 
 //-----------------------------------------------------
 // THLT parameters and variables (One-Wire). Used for:
@@ -395,6 +396,8 @@ void pwm_task(void)
    max7219_write(MAX7219_DIG0 | max7219dig0);
    max7219_write(MAX7219_DIG2 | max7219dig2);
    
+   uart3_command_handler(); // get ultrasonic sensor info
+   
    if (++cntr > 100) cntr = 1; // reset time-division counter
 } // pwm_task()
 
@@ -510,6 +513,10 @@ void owh_task(void)
         {
             owh_std = 1; // Only read OW device if DS2482 is found
         } // if
+        else
+        {   // DS2482 not found on I2C bus
+            thlt_ow_err = thlt_ow2_err = 1; // set both error flags to 1
+        } // else
         break;
     case 1: // Read Thlt_ow device
         thlt_ow_old_87 = thlt_ow_87; // copy previous value of thlt_ow
@@ -559,6 +566,10 @@ void owm_task(void)
         {
             owm_std = 1; // Only read OW device if DS2482 is found
         } // if
+        else
+        {   // DS2482 not found on I2C bus
+            tmlt_ow_err = tmlt_ow2_err = 1; // set both error flags to 1
+        } // else
         break;
     case 1: // Read Tmlt_ow device
         tmlt_ow_old_87 = tmlt_ow_87; // copy previous value of tmlt_ow
@@ -572,7 +583,7 @@ void owm_task(void)
         {   // More than 1 sensor?
             tmlt_ow2_87 = ds18b20_read(DS2482_TMLT_BASE, 1, &tmlt_ow2_err,1);
         } // if
-        else tmlt_ow2_err = 1;
+        else tmlt_ow2_err = 1; // 1 = error
         owm_std = 0;
         break;
     } // switch
@@ -668,9 +679,9 @@ void owc_task(void)
 void print_ebrew_revision(char *ver)
 {
     uint8_t len;
-    char s[20];
+    char s[30];
     
-    strcpy(ver, "E-Brew V3.0 rev.");  // welcome message, assure that all is well!
+    strcpy(ver, "E-Brew stm8s207 rev.");  // welcome message, assure that all is well!
     len = strlen(ebrew_revision) - 13;  // just get the rev. number
     strncpy(s,&ebrew_revision[11],len); // example: " 1.3"
     s[len]   = '\n';
@@ -767,19 +778,20 @@ int main(void)
     //-------------------------------------------------------------------
     clk = initialise_system_clock(HSE); // Set system-clock to 24 MHz
 
-    uart_init(clk);           // UART init. to BAUDRATE (uart.h),8,N,1
-    setup_timers(clk);        // Set Timer 2 to 1 kHz and timer1 and timer3 for PWM output
-    setup_gpio_ports();       // Init. needed output-ports for LED and keys
+    uart_init(clk);            // UART init. to BAUDRATE (uart.h),8,N,1
+    uart3_init(clk);           // UART3 init. to BAUDRATE3 (uart.h),8,N,1
+    setup_timers(clk);         // Set Timer 2 to 1 kHz and timer1 and timer3 for PWM output
+    setup_gpio_ports();        // Init. needed output-ports for LED and keys
     x0 = i2c_init_bb(I2C_CH0); // Init. I2C bus 0 for bit-banging
     x1 = i2c_init_bb(I2C_CH1); // Init. I2C bus 1 for bit-banging
     x2 = i2c_init_bb(I2C_CH2); // Init. I2C bus 2 for bit-banging
-    //pwm_write(PWM_BK ,0);      // Start with 0 % duty-cycle for Boil-kettle
-    //pwm_write(PWM_HLT,0);      // Start with 0 % duty-cycle for HLT
-    spi_init();               // Init. SPI module: 3 MHz clock, Master mode, SPI mode 1
-    max7219_init();           // Init. MAX7219 on SPI-bus
+    //pwm_write(PWM_BK ,0);    // Start with 0 % duty-cycle for Boil-kettle
+    //pwm_write(PWM_HLT,0);    // Start with 0 % duty-cycle for HLT
+    spi_init();                // Init. SPI module: 3 MHz clock, Master mode, SPI mode 1
+    max7219_init();            // Init. MAX7219 on SPI-bus
     
-    check_and_init_eeprom();  // EEPROM init.
-    read_eeprom_parameters(); // Read EEPROM value for ETHUSB and delayed-start
+    check_and_init_eeprom();   // EEPROM init.
+    read_eeprom_parameters();  // Read EEPROM value for ETHUSB and delayed-start
 	
     //---------------------------------------------------------------
     // Init. Moving Average Filters for Measurements

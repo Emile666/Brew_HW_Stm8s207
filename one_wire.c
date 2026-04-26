@@ -604,13 +604,20 @@ int16_t ds18b20_read(uint8_t i2c_addr, uint8_t dvc, uint8_t *err, uint8_t s2)
         idx = ((i2c_addr - DS2482_THLT_BASE) & 0x07) + dvc;
         OW_write_byte(OW_MATCH_ROM_CMD, i2c_addr); // address sensor with MATCH ROM command
         for (i = 0; i < 8; i++) OW_write_byte(ROM_ID[idx][i],i2c_addr);
-        //OW_write_byte(OW_SKIP_ROM_CMD        , i2c_addr); // only 1 sensor, use SKIP ROM command
         OW_write_byte(OW_READ_SCRATCHPAD_FCMD, i2c_addr); // Read scratchpad
         if (s2)
         {	// only read 2 temperature bytes
             scratch[0] = OW_read_byte(i2c_addr);
             scratch[1] = OW_read_byte(i2c_addr);
-            *err = !OW_reset(i2c_addr); // false: error
+            if ((*err = !OW_reset(i2c_addr)) == false) 
+            { // No error. With multiple sensors on a OW bus, all sensors
+              // now react to this OW_reset(), because the OW_MATCH_ROM_CMD is only used
+              // for reading the scratchpad. If one sensor addressed suddenly fails,
+              // this is not detected with OW_reset() alone. So check the scratchpad
+              // results, if it is all 0xFF, the sensor is not responding (or it
+              // actually has a -0.0625 °C temperature).
+              if ((scratch[0] & scratch[1]) == 0xFF) *err = true; // set error flag
+            } // if
         } // if
         else
         {

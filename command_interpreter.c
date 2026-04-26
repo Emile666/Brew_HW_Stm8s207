@@ -46,6 +46,8 @@ extern pwmtime    pwmhlt1;             // Struct for HLT Electrical Heater 1 Slo
 extern pwmtime    pwmhlt2;             // Struct for HLT Electrical Heater 2 Slow SSR signal
 extern pwmtime    pwmhlt3;             // Struct for HLT Electrical Heater 3 Slow SSR signal
 
+extern uint16_t   hlt_dist;            // HLT distance in mm from ultrasonic sensor
+
 extern uint8_t    bk_elec1_pwm;        // PWM signal (0-100 %) for Boil-kettle Electric heating-element 1
 extern uint8_t    bk_elec2_pwm;        // PWM signal (0-100 %) for Boil-kettle Electric heating-element 2
 extern uint8_t    bk_elec3_pwm;        // PWM signal (0-100 %) for Boil-kettle Electric heating-element 3
@@ -513,7 +515,9 @@ uint8_t execute_single_command(char *s, bool rs232_udp)
                    process_flows(flow_hlt_mlt ,s2,0);
                    process_flows(flow_mlt_boil,s2,0);
                    process_flows(flow_cfc_out ,s2,0);
-                   process_flows(flow4        ,s2,1);
+                   process_flows(flow4        ,s2,0);
+                   pr(rs232_udp,s2);            // print to UART or ETH
+                   sprintf(s2,"%d\n",hlt_dist); // add HLT distance to flows
                    break;
                default: 
                    rval = ERR_NUM;
@@ -690,3 +694,33 @@ uint8_t execute_single_command(char *s, bool rs232_udp)
    } // switch
    return rval;	
 } // execute_single_command()
+
+/*-----------------------------------------------------------------------------
+  Purpose  : Non-blocking RS232 command-handler via the USB port
+  Variables: -
+  Returns  : [NO_ERR, ERR_CMD, ERR_NUM]
+  ---------------------------------------------------------------------------*/
+uint8_t uart3_command_handler(void)
+{
+  char ch1,ch2,ch3,ch4;
+  
+  hlt_dist = 0; // reset HLT distance in mm
+  if (uart3_kbhit())
+  { // A new character has been received
+    while (uart3_kbhit() && ((ch1 = uart3_getc()) != 0xff)) ;
+    if (ch1 == 0xff)
+    {
+        while (!uart3_kbhit()) ;
+        ch2 = uart3_getc();
+        while (!uart3_kbhit()) ;
+        ch3 = uart3_getc();
+        while (!uart3_kbhit()) ;
+        ch4 = uart3_getc();
+        if ((ch1 == 0xff) && (ch2 + ch3 == ch4 + 1))
+        {
+            hlt_dist = ((int16_t)ch2 << 8) + ch3;
+        } // if
+    } // if
+  } // if
+  return NO_ERR;
+} // uart3_command_handler()

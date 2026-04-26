@@ -41,5 +41,6 @@ void    process_temperature(uint8_t err, char *name, int16_t val_87);
 void    process_flow(uint32_t flow_val, char *name);
 void    list_all_tasks(bool rs232_udp);
 uint8_t execute_single_command(char *s, bool rs232_udp);
+uint8_t uart3_command_handler(void);
 
 #endif

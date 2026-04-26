@@ -32,6 +32,11 @@ struct ring_buffer ring_buffer_in;
 uint8_t            out_buffer[TX_BUF_SIZE];
 uint8_t            in_buffer[RX_BUF_SIZE];
 
+struct ring_buffer ring_buffer_out3;
+struct ring_buffer ring_buffer_in3;
+uint8_t            out_buffer3[TX_BUF_SIZE];
+uint8_t            in_buffer3[RX_BUF_SIZE];
+
 //-----------------------------------------------------------------------------
 // UART Transmit complete Interrupt.
 //
@@ -199,3 +204,117 @@ uint8_t uart_getc(void)
     return ring_buffer_get(&ring_buffer_in);
 } // uart_getch()
 
+//-----------------------------------------------------------------------------
+// UART Transmit complete Interrupt.
+//
+// This interrupt will be executed when the TXE (Transmit Data Register Empty)
+// bit in UART1_SR is set. The TXE bit is set by hardware when the contents of 
+// the TDR register has been transferred into the shift register. An interrupt 
+// is generated if the TIEN bit =1 in the UART_CR1 register. It is cleared by a
+// write to the UART_DR register.
+//-----------------------------------------------------------------------------
+#pragma vector=UART3_T_TXE_vector
+__interrupt void UART3_TX_IRQHandler()
+{
+	if (!ring_buffer_is_empty(&ring_buffer_out3))
+	{   // if there is data in the ring buffer, fetch it and send it
+		UART3_DR = ring_buffer_get(&ring_buffer_out3);
+	} // if
+    else
+    {   // no more data to send, turn off interrupt
+        UART3_CR2_TIEN = 0;
+    } // else
+} /* UART3_TX_IRQHandler() */
+
+//-----------------------------------------------------------------------------
+// UART Receive Complete Interrupt.
+
+// This interrupt will be executed when the RXNE (Read Data-Register Not Empty)
+// bit in UART1_SR is set. This bit is set by hardware when the contents of the 
+// RDR shift register has been transferred to the UART1_DR register. An interrupt 
+// is generated if RIEN=1 in the UART1_CR2 register. It is cleared by a read to 
+// the UART1_DR register. It can also be cleared by writing 0.
+//-----------------------------------------------------------------------------
+#pragma vector=UART3_R_RXNE_vector
+__interrupt void UART3_RX_IRQHandler(void)
+{
+	if (!ring_buffer_is_full(&ring_buffer_in3))
+	{
+            ring_buffer_put(&ring_buffer_in3, UART3_DR);
+	} // if
+	else
+	{
+            UART3_SR; // Clear IDLE and Overrun errors
+            UART3_DR;
+	} // else
+} /* UART3_RX_IRQHandler() */
+
+/*------------------------------------------------------------------
+  Purpose  : This function initializes the UART to BAUDRATE (uart.h).
+             Master clock is 24 MHz, baud-rate is 115200 Baud.
+  Variables: clk: which clock is active: HSI (0xE1), HSE (0xB4) or LSI (0xD2)
+  Returns  : -
+  ------------------------------------------------------------------*/
+void uart3_init(uint8_t clk)
+{
+    //  Clear the Idle Line Detected bit in the status register by a read
+    //  to the UART3_SR register followed by a Read to the UART3_DR register.
+    UART3_SR; // read from status register
+    UART3_DR; // Read from data register
+
+    //  Reset the UART registers to the reset values.
+    UART3_CR1  = 0;
+    UART3_CR2  = 0;
+    UART3_CR4  = 0;
+    UART3_CR3  = 0;
+
+    // initialize the in and out buffer for the UART
+    ring_buffer_out3 = ring_buffer_init(out_buffer3, TX_BUF_SIZE);
+    ring_buffer_in3  = ring_buffer_init(in_buffer3 , RX_BUF_SIZE);
+
+    //  Now setup the port to BAUDRATE,N,8,1.
+    UART3_CR1_M    = 0;     //  8 Data bits.
+    UART3_CR1_PCEN = 0;     //  Disable parity.
+    UART3_CR3_STOP = 0;     //  1 stop bit.
+    if (clk == HSE)
+    {   // external 24 MHz HSE oscillator
+        UART3_BRR2 = UART3BRR2_HSE; // Set BRR2 register first
+        UART3_BRR1 = UART3BRR1_HSE;
+    } // if
+    else
+    {   // internal 16 MHz HSI oscillator
+        UART3_BRR2 = UART3BRR2_HSI; // Set BRR2 register first
+        UART3_BRR1 = UART3BRR1_HSI;
+    } // else
+
+    //  Disable the transmitter and receiver.
+    UART3_CR2_TEN = 0;      //  Disable transmit.
+    UART3_CR2_REN = 0;      //  Disable receive.
+
+    //  Turn on the UART transmit, receive and the UART clock.
+    UART3_CR2_TIEN = 1; // Enable Transmit interrupt
+    UART3_CR2_RIEN = 1; // Enable Receive interrupt
+    UART3_CR2_TEN  = 1; // Enable Transmitter
+    UART3_CR2_REN  = 1; // Enable Receiver
+} // uart3_init()
+
+/*------------------------------------------------------------------
+  Purpose  : This function checks if a character is present in the
+             receive buffer.
+  Variables: -
+  Returns  : 1 if a character is received, 0 otherwise
+  ------------------------------------------------------------------*/
+bool uart3_kbhit(void)
+{
+    return !ring_buffer_is_empty(&ring_buffer_in3);
+} // uart_kbhit()
+
+/*------------------------------------------------------------------
+  Purpose  : This function reads one data-byte from the uart.	
+  Variables: -
+  Returns  : the data-byte read from the uart
+  ------------------------------------------------------------------*/
+uint8_t uart3_getc(void)
+{
+    return ring_buffer_get(&ring_buffer_in3);
+} // uart_getch()
